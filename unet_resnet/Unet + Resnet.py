@@ -268,6 +268,7 @@ def conv_block(m, dim, acti, bn, res, do=0):
 def level_block(m, dim, depth, inc, acti, do, bn, mp, up, res):
     if depth > 0:
         n = conv_block(m, dim, acti, bn, res)
+        n = conv_block(n, dim, acti, bn, res)
         m = MaxPooling2D()(n) if mp else Conv2D(dim, 3, strides=2, padding='same')(n)
         m = level_block(m, int(inc*dim), depth-1, inc, acti, do, bn, mp, up, res)
         if up:
@@ -277,11 +278,13 @@ def level_block(m, dim, depth, inc, acti, do, bn, mp, up, res):
             m = Conv2DTranspose(dim, 3, strides=2, activation=acti, padding='same')(m)
         n = Concatenate()([n, m])
         m = conv_block(n, dim, acti, bn, res)
+        m = conv_block(m, dim, acti, bn, res)
     else:
+        m = conv_block(m, dim, acti, bn, res, do)
         m = conv_block(m, dim, acti, bn, res, do)
     return m
 
-def UNet(img_shape, out_ch=1, start_ch=64, depth=4, inc_rate=2., activation='relu', 
+def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='relu', 
          dropout=0.5, batchnorm=False, maxpool=True, upconv=True, residual=True):
     i = Input(shape=img_shape)
     o = level_block(i, start_ch, depth, inc_rate, activation, dropout, batchnorm, maxpool, upconv, residual)
@@ -293,13 +296,13 @@ model.compile(loss='binary_crossentropy', optimizer="adam", metrics=[mean_iou,"a
 model.summary()
 
 
-# In[10]:
+# In[ ]:
 
 
-get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 64\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
+get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 32\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
 
 
-# In[11]:
+# In[ ]:
 
 
 fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
@@ -311,7 +314,7 @@ ax_iou.plot(history.epoch, history.history["mean_iou"], label="Train iou")
 ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation iou")
 
 
-# In[12]:
+# In[ ]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -320,7 +323,7 @@ ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation io
 preds_valid = model.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[13]:
+# In[ ]:
 
 
 base_idx = 345
@@ -348,7 +351,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[14]:
+# In[ ]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -425,7 +428,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[15]:
+# In[ ]:
 
 
 threshold_best_index = np.argmax(ious)
