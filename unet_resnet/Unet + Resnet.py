@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[82]:
+# In[1]:
 
 
 import numpy as np
@@ -50,18 +50,18 @@ import tensorflow as tf
 from tqdm import tqdm_notebook
 
 
-# In[83]:
+# In[2]:
 
 
-path_train = './data/train/'
-path_test = './data/test/'
+path_train = '../data/train/'
+path_test = '../data/test/'
 train_ids = next(os.walk(path_train))[2]
 test_ids = next(os.walk(path_test))[2]
-depths_df = pd.read_csv("./data/depths.csv", index_col="id")
-train_df = pd.read_csv("./data/train.csv", index_col="id")
+depths_df = pd.read_csv("../data/depths.csv", index_col="id")
+train_df = pd.read_csv("../data/train.csv", index_col="id")
 
 
-# In[84]:
+# In[3]:
 
 
 def _connect_mongo(host, port, username, password, db):
@@ -125,30 +125,34 @@ def sample_mongo(db, collection, query={}, host='localhost', port=27017, usernam
     return df
 
 
-# In[85]:
+# In[4]:
 
 
 img_size_ori = 101
 img_size_target = 128
 
-def read_resize_img(x, scale, clahe=False, mask=False):
+def read_resize_img(x, scale,mask=False):
     img_byte = io.BytesIO(base64.b64decode(x))
-    if clahe:
-        img_np = np.array(imread(img_byte, as_gray=True),dtype=np.uint8)
-        clahe = cv2.createCLAHE(clipLimit=40.0, tileGridSize=(8,8))
-        img_clahe = clahe.apply(img_np) if clahe else img_np
-    else:
-        img_clahe = np.array(imread(img_byte, as_gray=True))
-    img_scale = img_clahe/scale
-    img_resize = resize(img_scale,(img_size_target,img_size_target), mode='constant', preserve_range=True) 
+    img_np = np.array(imread(img_byte, as_gray=True))/scale
+    img_np = resize(img_np,(img_size_target,img_size_target), mode='constant', preserve_range=True)
     if mask:
-        img_resize[img_resize>0] = 1
-    return img_resize
+        img_np[img_np>0] = 1
+#     if clahe:
+#         img_np = np.array(imread(img_byte, as_gray=True),dtype=np.uint8)
+#         clahe = cv2.createCLAHE(clipLimit=40.0, tileGridSize=(8,8))
+#         img_clahe = clahe.apply(img_np) if clahe else img_np
+#     else:
+#         img_clahe = np.array(imread(img_byte, as_gray=True))
+#     img_scale = img_clahe/scale
+#     img_resize = resize(img_scale,(img_size_target,img_size_target), mode='constant', preserve_range=True) 
+#     if mask:
+#         img_resize[img_resize>0] = 1
+    return img_np
 
 train_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$ne":None}}]})
 # train_df = train_df.loc[:20]
 
-train_df['img'] = train_df['img_base64'].apply(lambda x: read_resize_img(x, 256.0, clahe=True))
+train_df['img'] = train_df['img_base64'].apply(lambda x: read_resize_img(x, 256.0))
 train_df['img_mask'] = train_df['img_mask_base64'].apply(lambda x: read_resize_img(x, 65535.0, mask=True))
 
 train_df = train_df.drop('img_base64', axis=1)
@@ -157,13 +161,21 @@ train_df = train_df.drop('img_mask_base64', axis=1)
 train_df, val_df = train_test_split(train_df, test_size=0.1)
 
 
-# In[86]:
+# In[5]:
 
 
-def random_crop_resize(x, crop, flip, clahe=False):
+def random_crop_resize(x, crop, flip, clahe=False, clahe_clip=0.0, clahe_grid=8):
     x = np.fliplr(x) if flip else x
     x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
     x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)
+    
+    if clahe:
+        x = (x * 255).astype(np.uint8)
+        clahe = cv2.createCLAHE(clipLimit=clahe_clip, tileGridSize=(clahe_grid,clahe_grid))
+        x = clahe.apply(x)
+        info = np.iinfo(x.dtype) # Get the information of the incoming image type
+        x = x.astype(np.float64) / info.max # normalize the data to 0 - 1
+    
     return x
 
 def img_augment(df):
@@ -172,9 +184,11 @@ def img_augment(df):
     #     np.random.seed(0)
         crop = np.random.randint(low=1, high=10, size=4)
         flip = np.random.choice([True, False])
-        clahe = True
+        clahe = np.random.choice([True, False])
+        clahe_clip = np.random.uniform(low=1, high=5, size=1)[0]
+        clahe_grid = np.random.randint(low=1, high=4, size=1)[0]
 
-        img = random_crop_resize(row['img'], crop, flip, clahe=clahe)
+        img = random_crop_resize(row['img'], crop, flip, clahe=clahe, clahe_clip=clahe_clip, clahe_grid=clahe_grid)
         img_mask = random_crop_resize(row['img_mask'], crop, flip)
         
         coverage = np.sum(img_mask) / pow(img_size_target, 2)
@@ -195,14 +209,15 @@ def img_augment(df):
     all_df = pd.concat([df, augment_df],ignore_index=True)
     return all_df
 
-train_df = img_augment(train_df)
-val_df = img_augment(val_df)
+for i in range(2):
+    train_df = img_augment(train_df)
+    val_df = img_augment(val_df)
 
 
-# In[87]:
+# In[6]:
 
 
-base_idx = 0
+base_idx = 4000
 max_images = 16
 grid_width = 4
 grid_height = int(max_images / grid_width)
@@ -222,7 +237,7 @@ for i, idx in enumerate(train_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[88]:
+# In[8]:
 
 
 X_train = np.expand_dims(np.stack((np.asarray(train_df['img'].values.tolist()))),axis=3)
@@ -231,7 +246,7 @@ y_train = np.expand_dims(np.asarray(train_df['img_mask'].values.tolist()),axis=3
 y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 
 
-# In[89]:
+# In[9]:
 
 
 # Define IoU metric
@@ -247,66 +262,54 @@ def mean_iou(y_true, y_pred):
     return K.mean(K.stack(prec), axis=0)
 
 
-# In[90]:
+# In[10]:
 
 
-def conv_block(m, dim, acti, bn, res, do=0, l2_lamda=0):
-    n = Conv2D(dim, 3, activation=acti, padding='same',kernel_regularizer=l2(l2_lamda),bias_regularizer=l2(l2_lamda),activity_regularizer=l2(l2_lamda))(m)
-    n = BatchNormalization(beta_regularizer=l2(l2_lamda), gamma_regularizer=l2(l2_lamda))(n) if bn else n
+def conv_block(m, dim, acti, bn, res, do=0):
+    n = Conv2D(dim, 3, activation=acti, padding='same')(m)
+    n = BatchNormalization()(n) if bn else n
     n = SpatialDropout2D(do/2.0)(n) if do else n
-    n = Conv2D(dim, 3, activation=acti, padding='same',kernel_regularizer=l2(l2_lamda),bias_regularizer=l2(l2_lamda),activity_regularizer=l2(l2_lamda))(n)
-    n = BatchNormalization(beta_regularizer=l2(l2_lamda), gamma_regularizer=l2(l2_lamda))(n) if bn else n
+    n = Conv2D(dim, 3, activation=acti, padding='same')(n)
+    n = BatchNormalization()(n) if bn else n
     n = Concatenate()([m, n]) if res else n
     n = SpatialDropout2D(do)(n) if do else n
     return n
 
-def level_block(m, dim, depth, inc, acti, do, bn, mp, up, res, l2_lamda):
+def level_block(m, dim, depth, inc, acti, do, bn, mp, up, res):
     if depth > 0:
         n = conv_block(m, dim, acti, bn, res)
         m = MaxPooling2D()(n) if mp else Conv2D(dim, 3, strides=2, padding='same')(n)
-        m = level_block(m, int(inc*dim), depth-1, inc, acti, do, bn, mp, up, res, l2_lamda)
+        m = level_block(m, int(inc*dim), depth-1, inc, acti, do, bn, mp, up, res)
         if up:
             m = UpSampling2D()(m)
-            m = Conv2D(dim, 2, activation=acti, padding='same', kernel_regularizer=l2(l2_lamda),bias_regularizer=l2(l2_lamda),activity_regularizer=l2(l2_lamda))(m)
+            m = Conv2D(dim, 2, activation=acti, padding='same')(m)
         else:
-            m = Conv2DTranspose(dim, 3, strides=2, activation=acti, padding='same', kernel_regularizer=l2(l2_lamda),bias_regularizer=l2(l2_lamda),activity_regularizer=l2(l2_lamda))(m)
+            m = Conv2DTranspose(dim, 3, strides=2, activation=acti, padding='same')(m)
         n = Concatenate()([n, m])
-        m = conv_block(n, dim, acti, bn, res, l2_lamda=l2_lamda)
+        m = conv_block(n, dim, acti, bn, res)
     else:
-        m = conv_block(m, dim, acti, bn, res, do, l2_lamda=l2_lamda)
+        m = conv_block(m, dim, acti, bn, res, do)
     return m
 
 def UNet(img_shape, out_ch=1, start_ch=64, depth=4, inc_rate=2., activation='relu', 
-         dropout=0.5, batchnorm=False, maxpool=True, upconv=True, residual=True, l2_lamda=0):
+         dropout=0.5, batchnorm=False, maxpool=True, upconv=True, residual=True):
     i = Input(shape=img_shape)
-    o = level_block(i, start_ch, depth, inc_rate, activation, dropout, batchnorm, maxpool, upconv, residual, l2_lamda)
-    o = Conv2D(out_ch, 1, activation='sigmoid', kernel_regularizer=l2(l2_lamda),bias_regularizer=l2(l2_lamda),activity_regularizer=l2(l2_lamda))(o)
+    o = level_block(i, start_ch, depth, inc_rate, activation, dropout, batchnorm, maxpool, upconv, residual)
+    o = Conv2D(out_ch, 1, activation='sigmoid')(o)
     return Model(inputs=i, outputs=o)
 
-model = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.75, l2_lamda=0.0)
+model = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.75)
 model.compile(loss='binary_crossentropy', optimizer="adam", metrics=[mean_iou,"accuracy"])
 model.summary()
 
 
-# In[91]:
+# In[11]:
 
 
-epochs = 30
-batch_size = 64
-callbacks = [
-    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),
-    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),
-    ModelCheckpoint('model-unet-resnet.h5', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")
-]
-
-history = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,
-                    validation_data=(X_valid, y_valid))
-
-# history = model.fit({'img': X_train, 'feat': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,
-#                     validation_data=({'img': X_valid, 'feat': X_feat_valid}, y_valid))
+get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 64\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
 
 
-# In[92]:
+# In[12]:
 
 
 fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
@@ -318,7 +321,7 @@ ax_iou.plot(history.epoch, history.history["mean_iou"], label="Train iou")
 ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation iou")
 
 
-# In[93]:
+# In[13]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -327,10 +330,10 @@ ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation io
 preds_valid = model.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[94]:
+# In[14]:
 
 
-base_idx = 67
+base_idx = 869
 max_images = 32
 grid_width = 4
 grid_height = int(max_images / grid_width)
@@ -355,7 +358,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[95]:
+# In[15]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -432,7 +435,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[97]:
+# In[16]:
 
 
 threshold_best_index = np.argmax(ious)
