@@ -199,7 +199,7 @@ def img_augment(df):
     all_df = pd.concat([df, augment_df],ignore_index=True)
     return all_df
 
-for i in range(3):
+for i in range(1):
     train_df = img_augment(train_df)
     val_df = img_augment(val_df)
 
@@ -252,7 +252,7 @@ def mean_iou(y_true, y_pred):
     return K.mean(K.stack(prec), axis=0)
 
 
-# In[9]:
+# In[ ]:
 
 
 def conv_block(m, dim, acti, bn, res, do=0):
@@ -288,7 +288,7 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=4, inc_rate=2., activation='rel
     o = Conv2D(out_ch, 1, activation='sigmoid')(o)
     return Model(inputs=i, outputs=o)
 
-model = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.75)
+model = UNet((img_size_target,img_size_target,1),start_ch=16,depth=6,batchnorm=True, dropout=0.75)
 model.compile(loss='binary_crossentropy', optimizer="adam", metrics=[mean_iou,"accuracy"])
 model.summary()
 
@@ -296,7 +296,7 @@ model.summary()
 # In[10]:
 
 
-get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 64\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
+get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 16\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
 
 
 # In[11]:
@@ -320,7 +320,7 @@ ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation io
 preds_valid = model.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[19]:
+# In[13]:
 
 
 base_idx = 345
@@ -348,7 +348,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[14]:
+# In[ ]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -425,7 +425,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[15]:
+# In[16]:
 
 
 threshold_best_index = np.argmax(ious)
