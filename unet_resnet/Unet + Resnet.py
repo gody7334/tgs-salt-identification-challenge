@@ -137,16 +137,6 @@ def read_resize_img(x, scale,mask=False):
     img_np = resize(img_np,(img_size_target,img_size_target), mode='constant', preserve_range=True)
     if mask:
         img_np[img_np>0] = 1
-#     if clahe:
-#         img_np = np.array(imread(img_byte, as_gray=True),dtype=np.uint8)
-#         clahe = cv2.createCLAHE(clipLimit=40.0, tileGridSize=(8,8))
-#         img_clahe = clahe.apply(img_np) if clahe else img_np
-#     else:
-#         img_clahe = np.array(imread(img_byte, as_gray=True))
-#     img_scale = img_clahe/scale
-#     img_resize = resize(img_scale,(img_size_target,img_size_target), mode='constant', preserve_range=True) 
-#     if mask:
-#         img_resize[img_resize>0] = 1
     return img_np
 
 train_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$ne":None}}]})
@@ -185,8 +175,8 @@ def img_augment(df):
         crop = np.random.randint(low=1, high=10, size=4)
         flip = np.random.choice([True, False])
         clahe = np.random.choice([True, False])
-        clahe_clip = np.random.uniform(low=1, high=5, size=1)[0]
-        clahe_grid = np.random.randint(low=1, high=4, size=1)[0]
+        clahe_clip = np.random.uniform(low=1, high=20, size=1)[0]
+        clahe_grid = np.random.randint(low=1, high=8, size=1)[0]
 
         img = random_crop_resize(row['img'], crop, flip, clahe=clahe, clahe_clip=clahe_clip, clahe_grid=clahe_grid)
         img_mask = random_crop_resize(row['img_mask'], crop, flip)
@@ -209,7 +199,7 @@ def img_augment(df):
     all_df = pd.concat([df, augment_df],ignore_index=True)
     return all_df
 
-for i in range(2):
+for i in range(3):
     train_df = img_augment(train_df)
     val_df = img_augment(val_df)
 
@@ -237,7 +227,7 @@ for i, idx in enumerate(train_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[8]:
+# In[7]:
 
 
 X_train = np.expand_dims(np.stack((np.asarray(train_df['img'].values.tolist()))),axis=3)
@@ -246,7 +236,7 @@ y_train = np.expand_dims(np.asarray(train_df['img_mask'].values.tolist()),axis=3
 y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 
 
-# In[9]:
+# In[8]:
 
 
 # Define IoU metric
@@ -262,7 +252,7 @@ def mean_iou(y_true, y_pred):
     return K.mean(K.stack(prec), axis=0)
 
 
-# In[10]:
+# In[9]:
 
 
 def conv_block(m, dim, acti, bn, res, do=0):
@@ -303,13 +293,13 @@ model.compile(loss='binary_crossentropy', optimizer="adam", metrics=[mean_iou,"a
 model.summary()
 
 
-# In[11]:
+# In[10]:
 
 
 get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 64\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
 
 
-# In[12]:
+# In[11]:
 
 
 fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
@@ -321,7 +311,7 @@ ax_iou.plot(history.epoch, history.history["mean_iou"], label="Train iou")
 ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation iou")
 
 
-# In[13]:
+# In[12]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -330,10 +320,10 @@ ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation io
 preds_valid = model.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[14]:
+# In[19]:
 
 
-base_idx = 869
+base_idx = 345
 max_images = 32
 grid_width = 4
 grid_height = int(max_images / grid_width)
@@ -358,7 +348,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[15]:
+# In[14]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -435,7 +425,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[16]:
+# In[15]:
 
 
 threshold_best_index = np.argmax(ious)
