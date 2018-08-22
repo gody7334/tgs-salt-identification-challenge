@@ -1,7 +1,19 @@
 
 # coding: utf-8
+work: 
+image data augmentation, flip, crop, 
+resnet with high dropout, (as resnet so easy overfitting, and not enough data)
+2d spatial dropout
+dice loss
 
-# In[1]:
+not work:
+deeper, shellower
+
+experiment:
+smaller batch size
+Clahe
+CRF
+# In[12]:
 
 
 import numpy as np
@@ -45,6 +57,7 @@ from keras.backend.tensorflow_backend import set_session
 from keras.layers.merge import add
 from keras import regularizers
 from keras.regularizers import l2
+from keras.losses import binary_crossentropy
 import tensorflow as tf
 
 from tqdm import tqdm_notebook
@@ -175,8 +188,8 @@ def img_augment(df):
         crop = np.random.randint(low=1, high=10, size=4)
         flip = np.random.choice([True, False])
         clahe = np.random.choice([True, False])
-        clahe_clip = np.random.uniform(low=1, high=20, size=1)[0]
-        clahe_grid = np.random.randint(low=1, high=8, size=1)[0]
+        clahe_clip = np.random.uniform(low=1, high=10, size=1)[0]
+        clahe_grid = np.random.randint(low=1, high=4, size=1)[0]
 
         img = random_crop_resize(row['img'], crop, flip, clahe=clahe, clahe_clip=clahe_clip, clahe_grid=clahe_grid)
         img_mask = random_crop_resize(row['img_mask'], crop, flip)
@@ -198,6 +211,7 @@ def img_augment(df):
 
     all_df = pd.concat([df, augment_df],ignore_index=True)
     return all_df
+#     return augment_df
 
 for i in range(1):
     train_df = img_augment(train_df)
@@ -236,8 +250,13 @@ y_train = np.expand_dims(np.asarray(train_df['img_mask'].values.tolist()),axis=3
 y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 
 
-# In[8]:
+# In[13]:
 
+
+# tensorflow session setting
+tf_config = tf.ConfigProto()
+tf_config.gpu_options.allow_growth = True
+set_session(tf.Session(config=tf_config))
 
 # Define IoU metric
 def mean_iou(y_true, y_pred):
@@ -251,8 +270,60 @@ def mean_iou(y_true, y_pred):
         prec.append(score)
     return K.mean(K.stack(prec), axis=0)
 
+def dice_coef(y_true, y_pred):
+    y_true_f = K.flatten(y_true)
+    y_pred = K.cast(y_pred, 'float32')
+    y_pred_f = K.cast(K.greater(K.flatten(y_pred), 0.5), 'float32')
+    intersection = y_true_f * y_pred_f
+    score = 2. * K.sum(intersection) / (K.sum(y_true_f) + K.sum(y_pred_f))
+    return score
 
-# In[9]:
+def dice_loss(y_true, y_pred):
+    smooth = 1.
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+    intersection = y_true_f * y_pred_f
+    score = (2. * K.sum(intersection) + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
+    return 1. - score
+
+def bce_dice_loss(y_true, y_pred):
+    return binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
+
+def bce_logdice_loss(y_true, y_pred):
+    return binary_crossentropy(y_true, y_pred) - K.log(1. - dice_loss(y_true, y_pred))
+
+def weighted_bce_loss(y_true, y_pred, weight):
+    epsilon = 1e-7
+    y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
+    logit_y_pred = K.log(y_pred / (1. - y_pred))
+    loss = weight * (logit_y_pred * (1. - y_true) + 
+                     K.log(1. + K.exp(-K.abs(logit_y_pred))) + K.maximum(-logit_y_pred, 0.))
+    return K.sum(loss) / K.sum(weight)
+
+def weighted_dice_loss(y_true, y_pred, weight):
+    smooth = 1.
+    w, m1, m2 = weight, y_true, y_pred
+    intersection = (m1 * m2)
+    score = (2. * K.sum(w * intersection) + smooth) / (K.sum(w * m1) + K.sum(w * m2) + smooth)
+    loss = 1. - K.sum(score)
+    return loss
+
+def weighted_bce_dice_loss(y_true, y_pred):
+    y_true = K.cast(y_true, 'float32')
+    y_pred = K.cast(y_pred, 'float32')
+    # if we want to get same size of output, kernel size must be odd
+    averaged_mask = K.pool2d(
+            y_true, pool_size=(50, 50), strides=(1, 1), padding='same', pool_mode='avg')
+    weight = K.ones_like(averaged_mask)
+    w0 = K.sum(weight)
+    weight = 5. * K.exp(-5. * K.abs(averaged_mask - 0.5))
+    w1 = K.sum(weight)
+    weight *= (w0 / w1)
+    loss = weighted_bce_loss(y_true, y_pred, weight) + dice_loss(y_true, y_pred)
+    return loss
+
+
+# In[14]:
 
 
 def conv_block(m, dim, acti, bn, res, do=0):
@@ -268,7 +339,6 @@ def conv_block(m, dim, acti, bn, res, do=0):
 def level_block(m, dim, depth, inc, acti, do, bn, mp, up, res):
     if depth > 0:
         n = conv_block(m, dim, acti, bn, res)
-        n = conv_block(n, dim, acti, bn, res)
         m = MaxPooling2D()(n) if mp else Conv2D(dim, 3, strides=2, padding='same')(n)
         m = level_block(m, int(inc*dim), depth-1, inc, acti, do, bn, mp, up, res)
         if up:
@@ -278,9 +348,7 @@ def level_block(m, dim, depth, inc, acti, do, bn, mp, up, res):
             m = Conv2DTranspose(dim, 3, strides=2, activation=acti, padding='same')(m)
         n = Concatenate()([n, m])
         m = conv_block(n, dim, acti, bn, res)
-        m = conv_block(m, dim, acti, bn, res)
     else:
-        m = conv_block(m, dim, acti, bn, res, do)
         m = conv_block(m, dim, acti, bn, res, do)
     return m
 
@@ -291,18 +359,19 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
     o = Conv2D(out_ch, 1, activation='sigmoid')(o)
     return Model(inputs=i, outputs=o)
 
-model = UNet((img_size_target,img_size_target,1),start_ch=16,depth=4,batchnorm=True, dropout=0.75)
-model.compile(loss='binary_crossentropy', optimizer="adam", metrics=[mean_iou,"accuracy"])
+model = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.75)
+# model.compile(loss='binary_crossentropy', optimizer="adam", metrics=[mean_iou,"accuracy"])
+model.compile(loss=bce_dice_loss, optimizer="adam", metrics=[mean_iou,"accuracy"])
 model.summary()
 
 
-# In[ ]:
+# In[15]:
 
 
 get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 32\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
 
 
-# In[ ]:
+# In[16]:
 
 
 fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
@@ -314,7 +383,7 @@ ax_iou.plot(history.epoch, history.history["mean_iou"], label="Train iou")
 ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation iou")
 
 
-# In[ ]:
+# In[17]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -323,7 +392,7 @@ ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation io
 preds_valid = model.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[ ]:
+# In[18]:
 
 
 base_idx = 345
@@ -351,7 +420,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[ ]:
+# In[19]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -428,7 +497,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[ ]:
+# In[20]:
 
 
 threshold_best_index = np.argmax(ious)
