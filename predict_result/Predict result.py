@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[9]:
+# In[1]:
 
 
 import numpy as np
@@ -47,7 +47,7 @@ import tensorflow as tf
 from tqdm import tqdm_notebook
 
 
-# In[5]:
+# In[2]:
 
 
 img_size_ori = 101
@@ -106,7 +106,7 @@ def RLenc(img, order='F', format=True):
         return runs
 
 
-# In[6]:
+# In[3]:
 
 
 # Define IoU metric
@@ -174,14 +174,14 @@ def weighted_bce_dice_loss(y_true, y_pred):
     return loss
 
 
-# In[11]:
+# In[4]:
 
 
 # model = load_model("../unet_resnet/model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
 model = load_model("../unet_resnet/model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou, 'bce_dice_loss':bce_dice_loss})
 
 
-# In[12]:
+# In[5]:
 
 
 train_df = pd.read_csv("../data/train.csv", index_col="id", usecols=[0])
@@ -190,7 +190,7 @@ train_df = train_df.join(depths_df)
 test_df = depths_df[~depths_df.index.isin(train_df.index)]
 
 
-# In[13]:
+# In[6]:
 
 
 # for later test normalization
@@ -200,7 +200,7 @@ train_d = (train_df.z.values-depth_mean)/depth_std
 test_d = (test_df.z.values-depth_mean)/depth_std
 
 
-# In[14]:
+# In[7]:
 
 
 img_size_ori = 101
@@ -221,26 +221,26 @@ def read_resize_img(path, scale, clahe=False, mask=False):
     return img_resize
 
 
-# In[15]:
+# In[8]:
 
 
 # x_train = np.array([ read_resize_img("../data/train/{}.png".format(idx), 255, clahe=False) for idx in tqdm_notebook(train_df.index)]).reshape(-1, img_size_target, img_size_target, 1)
 
 
-# In[16]:
+# In[9]:
 
 
 x_test = np.array([ read_resize_img("../data/test/{}.png".format(idx), 255, clahe=False) for idx in tqdm_notebook(test_df.index)]).reshape(-1, img_size_target, img_size_target, 1)
 
 
-# In[17]:
+# In[10]:
 
 
 # preds_test = model.predict({'img': x_test, 'feat': test_d}, batch_size=32, verbose=1)
 preds_test = model.predict(x_test, batch_size=32, verbose=1)
 
 
-# In[18]:
+# In[11]:
 
 
 base_idx = 16000
@@ -262,13 +262,13 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[19]:
+# In[12]:
 
 
-threshold_best=0.7368421052631579
+threshold_best=0.6842105263157894
 pred_dict = {idx: RLenc(np.round(downsample(preds_test[i]) > threshold_best)) for i, idx in enumerate(tqdm_notebook(test_df.index.values))}
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')
 sub.index.names = ['id']
 sub.columns = ['rle_mask']
-sub.to_csv('submission_BN_res_repeate.csv')
+sub.to_csv('submission_BN_res_less_dropout.csv')
 

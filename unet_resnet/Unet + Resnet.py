@@ -1,5 +1,8 @@
 
 # coding: utf-8
+NOW EXPERIMENTING:
+bce loss + dice loss, 4*dataset, dropout=0.6
+
 work: 
 image data augmentation, flip, crop, 
 resnet with high dropout, (as resnet so easy overfitting, and not enough data)
@@ -8,12 +11,16 @@ dice loss
 
 not work:
 deeper, shellower
-
-experiment:
-smaller batch size
 Clahe
+pure dice loss, it will give binary solution, rather than probability
+
+idea:
+augmentation: rotation, affine transform,
+reduce dropout, as always under fitting
+smaller batch size
 CRF
-# In[12]:
+
+# In[1]:
 
 
 import numpy as np
@@ -191,7 +198,7 @@ def img_augment(df):
         clahe_clip = np.random.uniform(low=1, high=10, size=1)[0]
         clahe_grid = np.random.randint(low=1, high=4, size=1)[0]
 
-        img = random_crop_resize(row['img'], crop, flip, clahe=clahe, clahe_clip=clahe_clip, clahe_grid=clahe_grid)
+        img = random_crop_resize(row['img'], crop, flip, clahe=False, clahe_clip=clahe_clip, clahe_grid=clahe_grid)
         img_mask = random_crop_resize(row['img_mask'], crop, flip)
         
         coverage = np.sum(img_mask) / pow(img_size_target, 2)
@@ -213,7 +220,7 @@ def img_augment(df):
     return all_df
 #     return augment_df
 
-for i in range(1):
+for i in range(2):
     train_df = img_augment(train_df)
     val_df = img_augment(val_df)
 
@@ -250,7 +257,7 @@ y_train = np.expand_dims(np.asarray(train_df['img_mask'].values.tolist()),axis=3
 y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 
 
-# In[13]:
+# In[8]:
 
 
 # tensorflow session setting
@@ -323,7 +330,7 @@ def weighted_bce_dice_loss(y_true, y_pred):
     return loss
 
 
-# In[14]:
+# In[9]:
 
 
 def conv_block(m, dim, acti, bn, res, do=0):
@@ -359,19 +366,19 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
     o = Conv2D(out_ch, 1, activation='sigmoid')(o)
     return Model(inputs=i, outputs=o)
 
-model = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.75)
+model = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6)
 # model.compile(loss='binary_crossentropy', optimizer="adam", metrics=[mean_iou,"accuracy"])
 model.compile(loss=bce_dice_loss, optimizer="adam", metrics=[mean_iou,"accuracy"])
 model.summary()
 
 
-# In[15]:
+# In[10]:
 
 
 get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 32\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
 
 
-# In[16]:
+# In[11]:
 
 
 fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
@@ -383,7 +390,7 @@ ax_iou.plot(history.epoch, history.history["mean_iou"], label="Train iou")
 ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation iou")
 
 
-# In[17]:
+# In[12]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -392,7 +399,7 @@ ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation io
 preds_valid = model.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[18]:
+# In[13]:
 
 
 base_idx = 345
@@ -420,7 +427,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[19]:
+# In[14]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -497,7 +504,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[20]:
+# In[15]:
 
 
 threshold_best_index = np.argmax(ious)
