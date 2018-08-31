@@ -265,7 +265,7 @@ for i in range(base_idx,base_idx+int(max_images)):
 # In[12]:
 
 
-threshold_best=0.6842105263157894
+threshold_best=0.15789473684210525
 pred_dict = {idx: RLenc(np.round(downsample(preds_test[i]) > threshold_best)) for i, idx in enumerate(tqdm_notebook(test_df.index.values))}
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')
 sub.index.names = ['id']

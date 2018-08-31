@@ -1,35 +1,38 @@
 
 # coding: utf-8
-NOW EXPERIMENTING:
-Pinet:
-3. stack mask and temperal mask togather
-3. put into numpy array
-4. pinet pipeline, mainly how to generate test label
-5. generate temperal mask and write back to db
 
-Done:
-1. sample data(train + test) from db, split train data into train val data
-2. apply test data mask if its none (no temperal mask)
-3. basic augmentation twice for pinet
-
-work: 
-image data augmentation, flip, crop,
-resnet with high dropout, (as resnet so easy overfitting, and not enough data)
-2d spatial dropout
-dice loss, faster converge, but doesn't help improve score....
-
-not work:
-deeper, shellower
-Clahe
-pure dice loss, it will give binary solution, rather than probability
-dropout=0.6, overfitting, Val=0.8, LB=0.77
-
-idea:
-augmentation: rotation, affine transform, Elastic deformations
-reduce dropout, as always under fitting
-smaller batch size
-CRF
-inception block
+# ### NOW EXPERIMENTING:
+# Pinet:
+# * custom data generate to update test temperal mask every n epoch
+# * change unsupervise loss weight on the fly
+# 
+# 
+# ### Done:
+# * sample data(train + test) from db, split train data into train val data
+# * apply test data mask if its none (no temperal mask)
+# * basic augmentation twice for pinet
+# * custom pi net loss function
+# 
+# 
+# ### work: 
+# * image data augmentation, flip, crop,
+# * resnet with high dropout, (as resnet so easy overfitting, and not enough data)
+# * 2d spatial dropout
+# * dice loss, faster converge, but doesn't help improve score....
+# 
+# ### not work:
+# * deeper, shellower
+# * Clahe
+# * pure dice loss, it will give binary solution, rather than probability
+# * dropout=0.6, overfitting, Val=0.8, LB=0.77
+# 
+# ### idea:
+# * augmentation: rotation, affine transform, Elastic deformations
+# * reduce dropout, as always under fitting
+# * smaller batch size
+# * CRF
+# * inception block
+# 
 
 # In[1]:
 
@@ -59,6 +62,7 @@ plt.style.use('seaborn-white')
 import seaborn as sns
 sns.set_style("white")
 
+import keras
 from keras.preprocessing.image import load_img
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.models import load_model
@@ -163,22 +167,65 @@ def sample_mongo(db, collection, query={}, host='localhost', port=27017, usernam
     return df
 
 
+# # Put all dataset into DF frist, hold in memory
+
 # In[4]:
 
 
-get_ipython().run_cell_magic('time', '', 'img_size_ori = 101\nimg_size_target = 128\n\ndef read_resize_img(x, scale,mask=False):\n    img_byte = io.BytesIO(base64.b64decode(x))\n    img_np = np.array(imread(img_byte, as_gray=True))/scale\n    img_np = resize(img_np,(img_size_target,img_size_target), mode=\'constant\', preserve_range=True)\n    if mask:\n        img_np[img_np>0] = 1\n    return img_np\n\ntrain_df = read_mongo(\'dataset\', \'tgs_salt\', {"$and": [{"img_mask_base64":{"$ne":None}}]})\n# test_df = read_mongo(\'dataset\', \'tgs_salt\', {"$and": [{"img_mask_base64":{"$eq":None}}]})\ntest_df = sample_mongo(\'dataset\', \'tgs_salt\', {"$and": [{"img_mask_base64":{"$eq":None}}]})\n\n# train_df = train_df.loc[:20]\n\ntrain_df[\'img\'] = train_df[\'img_base64\'].apply(lambda x: read_resize_img(x, 256.0))\ntrain_df[\'img_mask\'] = train_df[\'img_mask_base64\'].apply(lambda x: read_resize_img(x, 65535.0, mask=True))\ntrain_df[\'img_temperal_mask\'] = train_df[\'img\'].apply(lambda x: -1*np.ones((img_size_target,img_size_target)))\ntest_df[\'img\'] = test_df[\'img_base64\'].apply(lambda x: read_resize_img(x, 256.0))\ntest_df[\'img_mask\'] = test_df[\'img\'].apply(lambda x: -1*np.ones((img_size_target,img_size_target)))\ntest_df[\'img_temperal_mask\'] = test_df[\'img\'].apply(lambda x: -1*np.ones((img_size_target,img_size_target)))\n\ntrain_df = train_df.drop(\'img_base64\', axis=1)\ntrain_df = train_df.drop(\'img_mask_base64\', axis=1)\ntrain_df = train_df.drop(\'ASM\', axis=1)\ntrain_df = train_df.drop(\'contrast\', axis=1)\ntrain_df = train_df.drop(\'correlation\', axis=1)\ntrain_df = train_df.drop(\'dissimilarity\', axis=1)\ntrain_df = train_df.drop(\'energy\', axis=1)\ntrain_df = train_df.drop(\'entropy\', axis=1)\ntrain_df = train_df.drop(\'homogeneity\', axis=1)\ntrain_df = train_df.drop(\'coverage\', axis=1)\ntrain_df = train_df.drop(\'coverage_class\', axis=1)\ntest_df = test_df.drop(\'img_base64\', axis=1)\n\ntrain_df, val_df = train_test_split(train_df, test_size=0.1)')
+img_size_ori = 101
+img_size_target = 128
+
+def read_resize_img(x, scale,mask=False):
+    img_byte = io.BytesIO(base64.b64decode(x))
+    img_np = np.array(imread(img_byte, as_gray=True))/scale
+    img_np = resize(img_np,(img_size_target,img_size_target), mode='constant', preserve_range=True)
+    if mask:
+        img_np[img_np>0] = 1
+    return img_np
+
+train_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$ne":None}}]})
+test_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]})
+# test_df = sample_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]})
+
+# train_df = train_df.loc[:20]
+
+train_df['img'] = train_df['img_base64'].apply(lambda x: read_resize_img(x, 256.0))
+train_df['img_mask'] = train_df['img_mask_base64'].apply(lambda x: read_resize_img(x, 65535.0, mask=True))
+train_df['img_temperal_mask'] = train_df['img'].apply(lambda x: -1*np.ones((img_size_target,img_size_target)))
+test_df['img'] = test_df['img_base64'].apply(lambda x: read_resize_img(x, 256.0))
+test_df['img_mask'] = test_df['img'].apply(lambda x: -1*np.ones((img_size_target,img_size_target)))
+test_df['img_temperal_mask'] = test_df['img'].apply(lambda x: -1*np.ones((img_size_target,img_size_target)))
+
+train_df = train_df.drop('img_base64', axis=1)
+train_df = train_df.drop('img_mask_base64', axis=1)
+train_df = train_df.drop('ASM', axis=1)
+train_df = train_df.drop('contrast', axis=1)
+train_df = train_df.drop('correlation', axis=1)
+train_df = train_df.drop('dissimilarity', axis=1)
+train_df = train_df.drop('energy', axis=1)
+train_df = train_df.drop('entropy', axis=1)
+train_df = train_df.drop('homogeneity', axis=1)
+train_df = train_df.drop('coverage', axis=1)
+train_df = train_df.drop('coverage_class', axis=1)
+test_df = test_df.drop('img_base64', axis=1)
+
+train_df, val_df = train_test_split(train_df, test_size=0.1)
 
 
 # In[5]:
 
 
-test_df.head(1)
+print(train_df.shape)
+print(val_df.shape)
+print(test_df.shape)
 
+
+# # Data Preprcessing function: sample, augment, to np_array
 
 # In[6]:
 
 
-def sample_df():
+def sample_df(train_df, val_df, test_df):
     # temperarly sample from df as not enough memory
     sample_rate = 0.35
     sample_rate = 1.0/sample_rate
@@ -192,46 +239,84 @@ def sample_df():
     # sample_test_df = test_df.sample(int(test_df.shape[0]/1000))
     return sample_train_df, sample_val_df, sample_test_df
 
-sample_train_df, sample_val_df, sample_test_df = sample_df()
+def get_batch_df(train_df, val_df, test_df, batch_idx, batch_size):
+    train_size = train_df.shape[0]
+    test_size = test_df.shape[0]
 
-
-# In[7]:
-
-
-get_ipython().run_cell_magic('time', '', "\ndef img_augmentation(sample_train_df, sample_val_df, sample_test_df):\n    def random_crop_resize(x, crop, flip):\n        x = np.fliplr(x) if flip else x\n        x = x[crop[0]:-crop[1],crop[2]:-crop[3]]\n        x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)\n        return x\n\n    def img_augment(df):\n        augment_df = pd.DataFrame()\n        for index, row in tqdm_notebook(df.iterrows(),total=len(df.index)):\n            # np.random.seed(0)\n            crop = np.random.randint(low=1, high=10, size=4)\n            flip = np.random.choice([True, False])\n            aug_img = random_crop_resize(row['img'], crop, flip)\n            aug_img_mask = random_crop_resize(row['img_mask'], crop, flip)\n            aug_img_temperal_mask = random_crop_resize(row['img_temperal_mask'], crop, flip)\n\n            augment_df = augment_df.append(\n                {\n                    'depth': row['depth'],\n                    'img_id': row['img_id']+'_augment',\n                    'aug_img': aug_img,\n                    'aug_img_mask': aug_img_mask,\n                    'aug_img_temperal_mask': aug_img_temperal_mask,\n                }, ignore_index=True\n            )\n        return augment_df\n    \n    train_augment_df = img_augment(sample_train_df)\n    val_augment_df = img_augment(sample_val_df)\n    test_augment_df = img_augment(sample_test_df)\n    \n    return train_augment_df, val_augment_df, test_augment_df\n\ntrain_augment_df, val_augment_df, test_augment_df = img_augmentation(sample_train_df, sample_val_df, sample_test_df)")
-
-
-# In[8]:
-
-
-test_augment_df.head(1)
-
-
-# In[9]:
-
-
-base_idx = 0
-max_images = 16
-grid_width = 4
-grid_height = int(max_images / grid_width)
-fig, axs = plt.subplots(grid_height, grid_width, figsize=(20, 20))
-row = 0; col = 0;
-for i, idx in enumerate(train_augment_df.index[base_idx:base_idx+int(max_images)]):
-    img = train_augment_df.loc[idx].aug_img
-    mask = train_augment_df.loc[idx].aug_img_mask
+    train_batch_size = int(train_size / (train_size + test_size))*batch_size
+    test_batch_size = batch_size - train_batch_size
     
-    ax = axs[row, col];
-    ax.imshow(img, cmap="seismic")
-#     ax.imshow(img, cmap="gray")
-    ax.imshow(mask, alpha=0.8, cmap="Reds"); col+=1;
-    ax.set_yticklabels([]); ax.set_xticklabels([]);
+    batch_train = train_df.iloc[batch_idx*train_batch_size:(batch_idx+1)*train_batch_size]
+    batch_test = test_df.iloc[batch_idx*test_batch_size:(batch_idx+1)*test_batch_size]
+    batch_val = val_df.iloc[batch_idx*batch_size:(batch_idx+1)*batch_size]
     
-    if col >= grid_width:
-        col=0; row+=1;
+    return batch_train, batch_val, batch_test
 
+def img_augmentation(sample_train_df, sample_val_df, sample_test_df):
+    def random_crop_resize(x, crop, flip):
+        x = np.fliplr(x) if flip else x
+        x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
+        x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)
+        return x
 
-# In[10]:
+    def img_augment(df):
+        augment_df = pd.DataFrame()
+        for index, row in tqdm_notebook(df.iterrows(),total=len(df.index)):
+            # np.random.seed(0)
+            crop = np.random.randint(low=1, high=10, size=4)
+            flip = np.random.choice([True, False])
+            aug_img = random_crop_resize(row['img'], crop, flip)
+            aug_img_mask = random_crop_resize(row['img_mask'], crop, flip)
+            aug_img_temperal_mask = random_crop_resize(row['img_temperal_mask'], crop, flip)
 
+            augment_df = augment_df.append(
+                {
+                    'depth': row['depth'],
+                    'img_id': row['img_id']+'_augment',
+                    'aug_img': aug_img,
+                    'aug_img_mask': aug_img_mask,
+                    'aug_img_temperal_mask': aug_img_temperal_mask,
+                }, ignore_index=True
+            )
+        return augment_df
+    
+    train_augment_df = img_augment(sample_train_df)
+    val_augment_df = img_augment(sample_val_df)
+    test_augment_df = img_augment(sample_test_df)
+    
+    return train_augment_df, val_augment_df, test_augment_df
+
+def _img_augmentation(_df):
+    def random_crop_resize(x, crop, flip):
+        x = np.fliplr(x) if flip else x
+        x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
+        x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)
+        return x
+
+    def img_augment(df):
+        augment_df = pd.DataFrame()
+        for index, row in df.iterrows():
+            # np.random.seed(0)
+            crop = np.random.randint(low=1, high=10, size=4)
+            flip = np.random.choice([True, False])
+            aug_img = random_crop_resize(row['img'], crop, flip)
+            aug_img_mask = random_crop_resize(row['img_mask'], crop, flip)
+            aug_img_temperal_mask = random_crop_resize(row['img_temperal_mask'], crop, flip)
+
+            augment_df = augment_df.append(
+                {
+                    'depth': row['depth'],
+                    'img_id': row['img_id']+'_augment',
+                    'aug_img': aug_img,
+                    'aug_img_mask': aug_img_mask,
+                    'aug_img_temperal_mask': aug_img_temperal_mask,
+                }, ignore_index=True
+            )
+        return augment_df
+    
+    _augment_df = img_augment(_df)
+    
+    return _augment_df
 
 def convert_to_np_array(train_augment_df, val_augment_df, test_augment_df):
     X_train = np.expand_dims(np.stack((np.asarray(train_augment_df['aug_img'].values.tolist()))),axis=3)
@@ -255,16 +340,73 @@ def convert_to_np_array(train_augment_df, val_augment_df, test_augment_df):
     
     return X_train, y_train, X_valid, y_valid
 
-X_train, y_train, X_valid, y_valid = convert_to_np_array(train_augment_df, val_augment_df, test_augment_df)
+def _convert_to_np_array(_augment_df):
+    X_np = np.expand_dims(np.stack((np.asarray(_augment_df['aug_img'].values.tolist()))),axis=3)
+    y_np = np.expand_dims(np.asarray(_augment_df['aug_img_mask'].values.tolist()),axis=3)
+    y_temp_np = np.expand_dims(np.asarray(_augment_df['aug_img_temperal_mask'].values.tolist()),axis=3)
+    y_np = np.concatenate((y_np,y_temp_np),axis=3)
+    
+    return X_np, y_np
+
+def calculate_test_temperal_mask():
+    global model_train, test_df, graph_train
+    with graph_train.as_default():
+        X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
+        predict_test = model_train.predict(X_test,batch_size=16, verbose=1)
+        predict_test = np.squeeze(predict_test)
+    
+    for index, row in tqdm_notebook(test_df.iterrows(),total=len(test_df.index)):
+        img_temperal_mask = row['img_temperal_mask']
+        predict = predict_test[index]
+        if(np.mean(img_temperal_mask) == -1):
+            test_df.at[index,'img_temperal_mask'] = predict
+        else:
+            test_df.at[index,'img_temperal_mask'] = (img_temperal_mask + predict)/2
+    return test_df
 
 
-# In[11]:
+# # plot some data
+
+# In[7]:
 
 
-# tensorflow session setting
-tf_config = tf.ConfigProto()
-tf_config.gpu_options.allow_growth = True
-set_session(tf.Session(config=tf_config))
+# %%time
+# sample_train_df, sample_val_df, sample_test_df = sample_df(train_df, val_df, test_df)
+# train_augment_df, val_augment_df, test_augment_df = img_augmentation(sample_train_df, sample_val_df, sample_test_df)
+# X_train, y_train, X_valid, y_valid = convert_to_np_array(train_augment_df, val_augment_df, test_augment_df)
+
+# test_augment_df.head(1)
+
+
+# In[8]:
+
+
+# base_idx = 0
+# max_images = 16
+# grid_width = 4
+# grid_height = int(max_images / grid_width)
+# fig, axs = plt.subplots(grid_height, grid_width, figsize=(20, 20))
+# row = 0; col = 0;
+# for i, idx in enumerate(train_augment_df.index[base_idx:base_idx+int(max_images)]):
+#     img = train_augment_df.loc[idx].aug_img
+#     mask = train_augment_df.loc[idx].aug_img_mask
+    
+#     ax = axs[row, col];
+#     ax.imshow(img, cmap="seismic")
+# #     ax.imshow(img, cmap="gray")
+#     ax.imshow(mask, alpha=0.8, cmap="Reds"); col+=1;
+#     ax.set_yticklabels([]); ax.set_xticklabels([]);
+    
+#     if col >= grid_width:
+#         col=0; row+=1;
+
+
+# # Custom loss function
+
+# In[9]:
+
+
+from debug import _debug_func
 
 # Define IoU metric
 def mean_iou(y_true, y_pred):
@@ -343,12 +485,6 @@ def keras_binary_crossentropy(target, output, from_logits=False):
         return tf.nn.sigmoid_cross_entropy_with_logits(labels=target,
                                                        logits=output)
 
-
-# In[12]:
-
-
-from debug import _debug_func
-
 # MSE between current and temporal outputs
 def temperal_mse_loss(y_true, y_pred):
     y_temperal = tf.slice(y_true, [0, 0, 0, 1], [-1, -1, -1, 1])
@@ -399,47 +535,104 @@ def temperal_mean_iou(y_true, y_pred):
 def temporal_loss(y_true, y_pred):
     sup_loss = masked_crossentropy(y_true, y_pred)
     unsup_loss = temperal_mse_loss(y_true, y_pred)
-    w = 20
+    w = 0.01
     
     return sup_loss + w * unsup_loss
 
 
-# In[13]:
+# # DataGenerator
+
+# In[10]:
 
 
-def calculate_test_temperal_mask():
-    global model_train, test_df
-    X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
-    predict_test = model_train.predict(X_test,batch_size=16, verbose=1)
-    predict_test = np.squeeze(predict_test)
+class DataGenerator(keras.utils.Sequence):
+    #class static variable
+    global model_train
+    _train_df = None
+    _val_df = None
+    _test_df = None
+    _X_train = None
+    _y_train = None
+    _X_valid = None
+    _y_valid = None
     
-    for index, row in tqdm_notebook(test_df.iterrows(),total=len(test_df.index)):
-        img_temperal_mask = row['img_temperal_mask']
-        predict = predict_test[index]
-        if(np.mean(img_temperal_mask) == -1):
-            test_df.at[index,'img_temperal_mask'] = predict
+    'Generates data for Keras'
+    def __init__(self, train_df, val_df, test_df, batch_size=32, shuffle=True, training=True):
+        self.training = training
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.epoch = 0
+        self.train_size = train_df.shape[0]
+        self.val_size = val_df.shape[0]
+        self.test_size = test_df.shape[0]
+        self.train_batch_size = int(self.train_size / (self.train_size + self.test_size)*self.batch_size)
+        self.val_batch_size = self.batch_size
+        self.test_batch_size = self.batch_size - self.train_batch_size
+        
+        print(f'train_size = {self.train_size},               val_size = {self.val_size},               test_size = {self.test_size},               train_batch_size = {self.train_batch_size},               val_batch_size = {self.val_batch_size},               test_batch_size = {self.test_batch_size},               ')
+        
+        'Initial static variable'
+        if self.training:
+            DataGenerator._train_df = train_df
+            DataGenerator._val_df = val_df
+            DataGenerator._test_df = test_df
+#             self.sample_from_df()
+
+    def sample_from_df(self):
+        sample_train_df, sample_val_df, sample_test_df = sample_df(DataGenerator._train_df, DataGenerator._val_df, DataGenerator._test_df)
+        train_augment_df, val_augment_df, test_augment_df = img_augmentation(sample_train_df, sample_val_df, sample_test_df)
+        DataGenerator._X_train, DataGenerator._y_train, DataGenerator._X_valid, DataGenerator._y_valid = convert_to_np_array(train_augment_df, val_augment_df, test_augment_df)
+
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        if self.training:
+            print('train lenght')
+            print(int(np.floor((self.train_size + self.test_size) / self.batch_size)))
+            return int(np.floor((self.train_size + self.test_size) / self.batch_size))
         else:
-            test_df.at[index,'img_temperal_mask'] = (img_temperal_mask + predict)/2 
+            print('val lenght')
+            print(int(np.floor(self.val_size / self.batch_size)))
+            return int(np.floor(self.val_size / self.batch_size))
 
-def build_dataset(epoch):
-    calculate_test_temperal_mask()
-    
-    global model_train, X_train, y_train, X_valid, y_valid, train_augment_df, val_augment_df, test_augment_df
-    del X_train, X_valid, y_train, y_valid
-    del train_augment_df, val_augment_df, test_augment_df
-    gc.collect()
-    
-    sample_train_df, sample_val_df, sample_test_df = sample_df()
-    train_augment_df, val_augment_df, test_augment_df = img_augmentation(sample_train_df, sample_val_df, sample_test_df)
-    X_train, y_train, X_valid, y_valid = convert_to_np_array(train_augment_df, val_augment_df, test_augment_df)
-    
-build_dataset_callback = LambdaCallback(
-    on_epoch_end=lambda epoch, logs: build_dataset(epoch)
-)
+    def __getitem__(self, index):
+        'Generate one batch of data'
+        'index: indicate which batch in a epoch, (first, second or third batch)'
+        # Generate indexes of the batch
+        if self.training:
+            if ((index+1)*self.train_batch_size > self.train_size) or ((index+1)*self.test_batch_size > self.test_size):
+                index = 0    
+            batch_train_df = DataGenerator._train_df.iloc[index*self.train_batch_size:(index+1)*self.train_batch_size]
+            batch_test_df = DataGenerator._test_df.iloc[index*self.test_batch_size:(index+1)*self.test_batch_size]
+            train_augment_df = _img_augmentation(batch_train_df)
+            test_augment_df = _img_augmentation(batch_test_df)
+            X_train_np, y_train_np = _convert_to_np_array(train_augment_df)
+            X_test_np, y_test_np = _convert_to_np_array(test_augment_df)
+            X_train_np = np.concatenate((X_train_np,X_test_np),axis=0)
+            y_train_np = np.concatenate((y_train_np,y_test_np),axis=0)
+            return X_train_np, y_train_np
+        else:
+            batch_val_df = DataGenerator._val_df.iloc[index*self.val_batch_size:(index+1)*self.val_batch_size]
+            val_augment_df = _img_augmentation(batch_val_df)
+            X_val_np, y_val_np = _convert_to_np_array(val_augment_df)
+            return X_val_np, y_val_np
+
+    def on_epoch_end(self):
+        'Updates indexes after each epoch'
+        print(f', epoch={self.epoch}')
+        self.epoch += 1
+        if self.epoch % 5 == 0:
+            new_test_df = calculate_test_temperal_mask()
+            DataGenerator._test_df = new_test_df
+#             self.sample_from_df()
 
 
-# In[14]:
+# In[11]:
 
+
+# tensorflow session setting
+tf_config = tf.ConfigProto()
+tf_config.gpu_options.allow_growth = True
+set_session(tf.Session(config=tf_config))
 
 def conv_block(m, dim, acti, bn, res, do=0, training=None):
     n = Conv2D(dim, 3, activation=acti, padding='same')(m)
@@ -474,37 +667,46 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
     o = Conv2D(out_ch, 1, activation='sigmoid')(o)
     return Model(inputs=i, outputs=o)
 
-# used for training unsuperivsed, that keep dropout
-model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=True)
-
-# used for predict, no dropout
-model_test = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=None)
 # model.compile(loss='binary_crossentropy', optimizer="adam", metrics=[mean_iou,"accuracy"])
 # model_train.compile(loss=bce_dice_loss, optimizer="adam", metrics=[mean_iou,"accuracy"])
+
+# used for training unsuperivsed, that keep dropout
+global model_train, graph_train
+model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=True)
 model_train.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_train.summary()
+graph_train = tf.get_default_graph()
+
+# # used for predict, no dropout
+# model_predict = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=False)
+# model_predict.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 
 
-# In[15]:
+# In[19]:
 
 
-get_ipython().run_cell_magic('time', '', 'epochs = 10\nbatch_size = 32\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mask_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mask_mean_iou", mode="max"),\n    build_dataset_callback\n]\n\nhistory = model_train.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# del X_train, X_valid, y_train, y_valid\n# del train_augment_df, val_augment_df, test_augment_df\n# gc.collect()')
+epochs = 50
+batch_size = 32
+callbacks = [
+    EarlyStopping(patience=10, verbose=1, monitor="val_mask_mean_iou", mode="max"),
+    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),
+    ModelCheckpoint('model-unet-resnet.h5', verbose=1, save_best_only=True, monitor="val_mask_mean_iou", mode="max"),
+]
+
+training_generator = DataGenerator(train_df, val_df, test_df, training=True)
+validation_generator = DataGenerator(train_df, val_df, test_df, training=False)
+
+history = model_train.fit_generator(generator=training_generator,
+                    validation_data=validation_generator,
+                    epochs=epochs, callbacks=callbacks,
+                    use_multiprocessing=True,
+                    workers=10)
+
+# history = model_train.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,
+#                     validation_data=(X_valid, y_valid))
 
 
-# In[ ]:
-
-
-for i in range(10):
-    sample_train_df, sample_val_df, sample_test_df = sample_df()
-    train_augment_df, val_augment_df, test_augment_df = img_augmentation(sample_train_df, sample_val_df, sample_test_df)
-    X_train, y_train, X_valid, y_valid = convert_to_np_array(train_augment_df, val_augment_df, test_augment_df)
-
-    history = model_train.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,
-                        validation_data=(X_valid, y_valid))
-    calculate_test_temperal_mask()
-
-
-# In[ ]:
+# In[20]:
 
 
 fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
@@ -516,7 +718,7 @@ ax_iou.plot(history.epoch, history.history["temperal_mean_iou"], label="Train te
 ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Validation temperal iou")
 
 
-# In[ ]:
+# In[21]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -526,7 +728,7 @@ y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 preds_valid = model_train.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[ ]:
+# In[22]:
 
 
 # plot some validate result
@@ -555,7 +757,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[ ]:
+# In[23]:
 
 
 # plot some temperal mask on test results
@@ -579,7 +781,7 @@ for i, idx in enumerate(test_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[14]:
+# In[24]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -656,7 +858,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[15]:
+# In[25]:
 
 
 threshold_best_index = np.argmax(ious)
