@@ -225,67 +225,6 @@ print(test_df.shape)
 # In[6]:
 
 
-def sample_df(train_df, val_df, test_df):
-    # temperarly sample from df as not enough memory
-    sample_rate = 0.35
-    sample_rate = 1.0/sample_rate
-
-    sample_train_df = train_df.sample(int(train_df.shape[0]/sample_rate))
-    sample_val_df = val_df.sample(int(val_df.shape[0]/sample_rate))
-    sample_test_df = test_df.sample(int(test_df.shape[0]/sample_rate))
-
-    # sample_train_df = train_df.sample(int(train_df.shape[0]/1))
-    # sample_val_df = val_df.sample(int(val_df.shape[0]/1))
-    # sample_test_df = test_df.sample(int(test_df.shape[0]/1000))
-    return sample_train_df, sample_val_df, sample_test_df
-
-def get_batch_df(train_df, val_df, test_df, batch_idx, batch_size):
-    train_size = train_df.shape[0]
-    test_size = test_df.shape[0]
-
-    train_batch_size = int(train_size / (train_size + test_size))*batch_size
-    test_batch_size = batch_size - train_batch_size
-    
-    batch_train = train_df.iloc[batch_idx*train_batch_size:(batch_idx+1)*train_batch_size]
-    batch_test = test_df.iloc[batch_idx*test_batch_size:(batch_idx+1)*test_batch_size]
-    batch_val = val_df.iloc[batch_idx*batch_size:(batch_idx+1)*batch_size]
-    
-    return batch_train, batch_val, batch_test
-
-def img_augmentation(sample_train_df, sample_val_df, sample_test_df):
-    def random_crop_resize(x, crop, flip):
-        x = np.fliplr(x) if flip else x
-        x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
-        x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)
-        return x
-
-    def img_augment(df):
-        augment_df = pd.DataFrame()
-        for index, row in tqdm_notebook(df.iterrows(),total=len(df.index)):
-            # np.random.seed(0)
-            crop = np.random.randint(low=1, high=10, size=4)
-            flip = np.random.choice([True, False])
-            aug_img = random_crop_resize(row['img'], crop, flip)
-            aug_img_mask = random_crop_resize(row['img_mask'], crop, flip)
-            aug_img_temperal_mask = random_crop_resize(row['img_temperal_mask'], crop, flip)
-
-            augment_df = augment_df.append(
-                {
-                    'depth': row['depth'],
-                    'img_id': row['img_id']+'_augment',
-                    'aug_img': aug_img,
-                    'aug_img_mask': aug_img_mask,
-                    'aug_img_temperal_mask': aug_img_temperal_mask,
-                }, ignore_index=True
-            )
-        return augment_df
-    
-    train_augment_df = img_augment(sample_train_df)
-    val_augment_df = img_augment(sample_val_df)
-    test_augment_df = img_augment(sample_test_df)
-    
-    return train_augment_df, val_augment_df, test_augment_df
-
 def _img_augmentation(_df):
     def random_crop_resize(x, crop, flip):
         x = np.fliplr(x) if flip else x
@@ -317,28 +256,6 @@ def _img_augmentation(_df):
     _augment_df = img_augment(_df)
     
     return _augment_df
-
-def convert_to_np_array(train_augment_df, val_augment_df, test_augment_df):
-    X_train = np.expand_dims(np.stack((np.asarray(train_augment_df['aug_img'].values.tolist()))),axis=3)
-    X_valid = np.expand_dims(np.stack((np.asarray(val_augment_df['aug_img'].values.tolist()))),axis=3)
-    X_test = np.expand_dims(np.stack((np.asarray(test_augment_df['aug_img'].values.tolist()))),axis=3)
-
-    y_train = np.expand_dims(np.asarray(train_augment_df['aug_img_mask'].values.tolist()),axis=3)
-    y_valid = np.expand_dims(np.asarray(val_augment_df['aug_img_mask'].values.tolist()),axis=3)
-    y_test = np.expand_dims(np.asarray(test_augment_df['aug_img_mask'].values.tolist()),axis=3)
-
-    y_temp_train = np.expand_dims(np.asarray(train_augment_df['aug_img_temperal_mask'].values.tolist()),axis=3)
-    y_temp_valid = np.expand_dims(np.asarray(val_augment_df['aug_img_temperal_mask'].values.tolist()),axis=3)
-    y_temp_test = np.expand_dims(np.asarray(test_augment_df['aug_img_temperal_mask'].values.tolist()),axis=3)
-
-    y_train = np.concatenate((y_train,y_temp_train),axis=3)
-    y_valid = np.concatenate((y_valid,y_temp_valid),axis=3)
-    y_test = np.concatenate((y_test,y_temp_test),axis=3)
-
-    X_train = np.concatenate((X_train,X_test),axis=0)
-    y_train = np.concatenate((y_train,y_test),axis=0)
-    
-    return X_train, y_train, X_valid, y_valid
 
 def _convert_to_np_array(_augment_df):
     X_np = np.expand_dims(np.stack((np.asarray(_augment_df['aug_img'].values.tolist()))),axis=3)
@@ -557,7 +474,7 @@ class DataGenerator(keras.utils.Sequence):
     _y_valid = None
     
     'Generates data for Keras'
-    def __init__(self, train_df, val_df, test_df, batch_size=32, shuffle=True, training=True):
+    def __init__(self, train_df, val_df, test_df, batch_size=32, shuffle=True, training=True, temperal_epoch=5):
         self.training = training
         self.batch_size = batch_size
         self.shuffle = shuffle
@@ -568,6 +485,7 @@ class DataGenerator(keras.utils.Sequence):
         self.train_batch_size = int(self.train_size / (self.train_size + self.test_size)*self.batch_size)
         self.val_batch_size = self.batch_size
         self.test_batch_size = self.batch_size - self.train_batch_size
+        self.temperal_epoch = temperal_epoch
         
         print(f'train_size = {self.train_size},               val_size = {self.val_size},               test_size = {self.test_size},               train_batch_size = {self.train_batch_size},               val_batch_size = {self.val_batch_size},               test_batch_size = {self.test_batch_size},               ')
         
@@ -576,12 +494,6 @@ class DataGenerator(keras.utils.Sequence):
             DataGenerator._train_df = train_df
             DataGenerator._val_df = val_df
             DataGenerator._test_df = test_df
-#             self.sample_from_df()
-
-    def sample_from_df(self):
-        sample_train_df, sample_val_df, sample_test_df = sample_df(DataGenerator._train_df, DataGenerator._val_df, DataGenerator._test_df)
-        train_augment_df, val_augment_df, test_augment_df = img_augmentation(sample_train_df, sample_val_df, sample_test_df)
-        DataGenerator._X_train, DataGenerator._y_train, DataGenerator._X_valid, DataGenerator._y_valid = convert_to_np_array(train_augment_df, val_augment_df, test_augment_df)
 
     def __len__(self):
         'Denotes the number of batches per epoch'
@@ -601,14 +513,21 @@ class DataGenerator(keras.utils.Sequence):
         if self.training:
             if ((index+1)*self.train_batch_size > self.train_size) or ((index+1)*self.test_batch_size > self.test_size):
                 index = 0    
+            
+            # slice batch of df
             batch_train_df = DataGenerator._train_df.iloc[index*self.train_batch_size:(index+1)*self.train_batch_size]
             batch_test_df = DataGenerator._test_df.iloc[index*self.test_batch_size:(index+1)*self.test_batch_size]
+            
+            # image augmentation
             train_augment_df = _img_augmentation(batch_train_df)
             test_augment_df = _img_augmentation(batch_test_df)
+            
+            # convert to np and concat train and test
             X_train_np, y_train_np = _convert_to_np_array(train_augment_df)
             X_test_np, y_test_np = _convert_to_np_array(test_augment_df)
             X_train_np = np.concatenate((X_train_np,X_test_np),axis=0)
             y_train_np = np.concatenate((y_train_np,y_test_np),axis=0)
+            
             return X_train_np, y_train_np
         else:
             batch_val_df = DataGenerator._val_df.iloc[index*self.val_batch_size:(index+1)*self.val_batch_size]
@@ -620,11 +539,12 @@ class DataGenerator(keras.utils.Sequence):
         'Updates indexes after each epoch'
         print(f', epoch={self.epoch}')
         self.epoch += 1
-        if self.epoch % 5 == 0:
+        if self.epoch % self.temperal_epoch == 0 and self.training:
             new_test_df = calculate_test_temperal_mask()
             DataGenerator._test_df = new_test_df
-#             self.sample_from_df()
 
+
+# # Build Unet + Resnet
 
 # In[11]:
 
@@ -685,7 +605,7 @@ graph_train = tf.get_default_graph()
 # In[19]:
 
 
-epochs = 50
+epochs = 100
 batch_size = 32
 callbacks = [
     EarlyStopping(patience=10, verbose=1, monitor="val_mask_mean_iou", mode="max"),
@@ -701,9 +621,6 @@ history = model_train.fit_generator(generator=training_generator,
                     epochs=epochs, callbacks=callbacks,
                     use_multiprocessing=True,
                     workers=10)
-
-# history = model_train.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,
-#                     validation_data=(X_valid, y_valid))
 
 
 # In[20]:

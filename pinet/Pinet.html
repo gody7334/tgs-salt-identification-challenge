@@ -12087,68 +12087,7 @@ div#notebook {
 <div class="prompt input_prompt">In&nbsp;[6]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="k">def</span> <span class="nf">sample_df</span><span class="p">(</span><span class="n">train_df</span><span class="p">,</span> <span class="n">val_df</span><span class="p">,</span> <span class="n">test_df</span><span class="p">):</span>
-    <span class="c1"># temperarly sample from df as not enough memory</span>
-    <span class="n">sample_rate</span> <span class="o">=</span> <span class="mf">0.35</span>
-    <span class="n">sample_rate</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">sample_rate</span>
-
-    <span class="n">sample_train_df</span> <span class="o">=</span> <span class="n">train_df</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">train_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">sample_rate</span><span class="p">))</span>
-    <span class="n">sample_val_df</span> <span class="o">=</span> <span class="n">val_df</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">val_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">sample_rate</span><span class="p">))</span>
-    <span class="n">sample_test_df</span> <span class="o">=</span> <span class="n">test_df</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">test_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">sample_rate</span><span class="p">))</span>
-
-    <span class="c1"># sample_train_df = train_df.sample(int(train_df.shape[0]/1))</span>
-    <span class="c1"># sample_val_df = val_df.sample(int(val_df.shape[0]/1))</span>
-    <span class="c1"># sample_test_df = test_df.sample(int(test_df.shape[0]/1000))</span>
-    <span class="k">return</span> <span class="n">sample_train_df</span><span class="p">,</span> <span class="n">sample_val_df</span><span class="p">,</span> <span class="n">sample_test_df</span>
-
-<span class="k">def</span> <span class="nf">get_batch_df</span><span class="p">(</span><span class="n">train_df</span><span class="p">,</span> <span class="n">val_df</span><span class="p">,</span> <span class="n">test_df</span><span class="p">,</span> <span class="n">batch_idx</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
-    <span class="n">train_size</span> <span class="o">=</span> <span class="n">train_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">test_size</span> <span class="o">=</span> <span class="n">test_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-
-    <span class="n">train_batch_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">train_size</span> <span class="o">/</span> <span class="p">(</span><span class="n">train_size</span> <span class="o">+</span> <span class="n">test_size</span><span class="p">))</span><span class="o">*</span><span class="n">batch_size</span>
-    <span class="n">test_batch_size</span> <span class="o">=</span> <span class="n">batch_size</span> <span class="o">-</span> <span class="n">train_batch_size</span>
-    
-    <span class="n">batch_train</span> <span class="o">=</span> <span class="n">train_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">batch_idx</span><span class="o">*</span><span class="n">train_batch_size</span><span class="p">:(</span><span class="n">batch_idx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">train_batch_size</span><span class="p">]</span>
-    <span class="n">batch_test</span> <span class="o">=</span> <span class="n">test_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">batch_idx</span><span class="o">*</span><span class="n">test_batch_size</span><span class="p">:(</span><span class="n">batch_idx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">test_batch_size</span><span class="p">]</span>
-    <span class="n">batch_val</span> <span class="o">=</span> <span class="n">val_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">batch_idx</span><span class="o">*</span><span class="n">batch_size</span><span class="p">:(</span><span class="n">batch_idx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">batch_size</span><span class="p">]</span>
-    
-    <span class="k">return</span> <span class="n">batch_train</span><span class="p">,</span> <span class="n">batch_val</span><span class="p">,</span> <span class="n">batch_test</span>
-
-<span class="k">def</span> <span class="nf">img_augmentation</span><span class="p">(</span><span class="n">sample_train_df</span><span class="p">,</span> <span class="n">sample_val_df</span><span class="p">,</span> <span class="n">sample_test_df</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">random_crop_resize</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">crop</span><span class="p">,</span> <span class="n">flip</span><span class="p">):</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">if</span> <span class="n">flip</span> <span class="k">else</span> <span class="n">x</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">crop</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="o">-</span><span class="n">crop</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">crop</span><span class="p">[</span><span class="mi">2</span><span class="p">]:</span><span class="o">-</span><span class="n">crop</span><span class="p">[</span><span class="mi">3</span><span class="p">]]</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="n">resize</span><span class="p">(</span><span class="n">x</span><span class="p">,(</span><span class="n">img_size_target</span><span class="p">,</span><span class="n">img_size_target</span><span class="p">),</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">preserve_range</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">x</span>
-
-    <span class="k">def</span> <span class="nf">img_augment</span><span class="p">(</span><span class="n">df</span><span class="p">):</span>
-        <span class="n">augment_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm_notebook</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="p">)):</span>
-            <span class="c1"># np.random.seed(0)</span>
-            <span class="n">crop</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">low</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
-            <span class="n">flip</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">])</span>
-            <span class="n">aug_img</span> <span class="o">=</span> <span class="n">random_crop_resize</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;img&#39;</span><span class="p">],</span> <span class="n">crop</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
-            <span class="n">aug_img_mask</span> <span class="o">=</span> <span class="n">random_crop_resize</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;img_mask&#39;</span><span class="p">],</span> <span class="n">crop</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
-            <span class="n">aug_img_temperal_mask</span> <span class="o">=</span> <span class="n">random_crop_resize</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;img_temperal_mask&#39;</span><span class="p">],</span> <span class="n">crop</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
-
-            <span class="n">augment_df</span> <span class="o">=</span> <span class="n">augment_df</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                <span class="p">{</span>
-                    <span class="s1">&#39;depth&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">],</span>
-                    <span class="s1">&#39;img_id&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;img_id&#39;</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_augment&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;aug_img&#39;</span><span class="p">:</span> <span class="n">aug_img</span><span class="p">,</span>
-                    <span class="s1">&#39;aug_img_mask&#39;</span><span class="p">:</span> <span class="n">aug_img_mask</span><span class="p">,</span>
-                    <span class="s1">&#39;aug_img_temperal_mask&#39;</span><span class="p">:</span> <span class="n">aug_img_temperal_mask</span><span class="p">,</span>
-                <span class="p">},</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span>
-            <span class="p">)</span>
-        <span class="k">return</span> <span class="n">augment_df</span>
-    
-    <span class="n">train_augment_df</span> <span class="o">=</span> <span class="n">img_augment</span><span class="p">(</span><span class="n">sample_train_df</span><span class="p">)</span>
-    <span class="n">val_augment_df</span> <span class="o">=</span> <span class="n">img_augment</span><span class="p">(</span><span class="n">sample_val_df</span><span class="p">)</span>
-    <span class="n">test_augment_df</span> <span class="o">=</span> <span class="n">img_augment</span><span class="p">(</span><span class="n">sample_test_df</span><span class="p">)</span>
-    
-    <span class="k">return</span> <span class="n">train_augment_df</span><span class="p">,</span> <span class="n">val_augment_df</span><span class="p">,</span> <span class="n">test_augment_df</span>
-
-<span class="k">def</span> <span class="nf">_img_augmentation</span><span class="p">(</span><span class="n">_df</span><span class="p">):</span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">def</span> <span class="nf">_img_augmentation</span><span class="p">(</span><span class="n">_df</span><span class="p">):</span>
     <span class="k">def</span> <span class="nf">random_crop_resize</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">crop</span><span class="p">,</span> <span class="n">flip</span><span class="p">):</span>
         <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">if</span> <span class="n">flip</span> <span class="k">else</span> <span class="n">x</span>
         <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">crop</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="o">-</span><span class="n">crop</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">crop</span><span class="p">[</span><span class="mi">2</span><span class="p">]:</span><span class="o">-</span><span class="n">crop</span><span class="p">[</span><span class="mi">3</span><span class="p">]]</span>
@@ -12179,28 +12118,6 @@ div#notebook {
     <span class="n">_augment_df</span> <span class="o">=</span> <span class="n">img_augment</span><span class="p">(</span><span class="n">_df</span><span class="p">)</span>
     
     <span class="k">return</span> <span class="n">_augment_df</span>
-
-<span class="k">def</span> <span class="nf">convert_to_np_array</span><span class="p">(</span><span class="n">train_augment_df</span><span class="p">,</span> <span class="n">val_augment_df</span><span class="p">,</span> <span class="n">test_augment_df</span><span class="p">):</span>
-    <span class="n">X_train</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">train_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-    <span class="n">X_valid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">val_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-    <span class="n">X_test</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">test_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-
-    <span class="n">y_train</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">train_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img_mask&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-    <span class="n">y_valid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">val_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img_mask&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-    <span class="n">y_test</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">test_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img_mask&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-
-    <span class="n">y_temp_train</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">train_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img_temperal_mask&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-    <span class="n">y_temp_valid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">val_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img_temperal_mask&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-    <span class="n">y_temp_test</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">test_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img_temperal_mask&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-
-    <span class="n">y_train</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">y_train</span><span class="p">,</span><span class="n">y_temp_train</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-    <span class="n">y_valid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">y_valid</span><span class="p">,</span><span class="n">y_temp_valid</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-    <span class="n">y_test</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">y_test</span><span class="p">,</span><span class="n">y_temp_test</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-
-    <span class="n">X_train</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">X_train</span><span class="p">,</span><span class="n">X_test</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-    <span class="n">y_train</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">y_train</span><span class="p">,</span><span class="n">y_test</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-    
-    <span class="k">return</span> <span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">X_valid</span><span class="p">,</span> <span class="n">y_valid</span>
 
 <span class="k">def</span> <span class="nf">_convert_to_np_array</span><span class="p">(</span><span class="n">_augment_df</span><span class="p">):</span>
     <span class="n">X_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">_augment_df</span><span class="p">[</span><span class="s1">&#39;aug_img&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))),</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
@@ -12465,7 +12382,7 @@ div#notebook {
     <span class="n">_y_valid</span> <span class="o">=</span> <span class="kc">None</span>
     
     <span class="s1">&#39;Generates data for Keras&#39;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">train_df</span><span class="p">,</span> <span class="n">val_df</span><span class="p">,</span> <span class="n">test_df</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">train_df</span><span class="p">,</span> <span class="n">val_df</span><span class="p">,</span> <span class="n">test_df</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">temperal_epoch</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="o">=</span> <span class="n">training</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">=</span> <span class="n">batch_size</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">shuffle</span> <span class="o">=</span> <span class="n">shuffle</span>
@@ -12476,6 +12393,7 @@ div#notebook {
         <span class="bp">self</span><span class="o">.</span><span class="n">train_batch_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">train_size</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">train_size</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">test_size</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">val_batch_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">test_batch_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">train_batch_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">temperal_epoch</span> <span class="o">=</span> <span class="n">temperal_epoch</span>
         
         <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;train_size = </span><span class="si">{self.train_size}</span><span class="s1">, </span><span class="se">\</span>
 <span class="s1">              val_size = </span><span class="si">{self.val_size}</span><span class="s1">, </span><span class="se">\</span>
@@ -12490,12 +12408,6 @@ div#notebook {
             <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_train_df</span> <span class="o">=</span> <span class="n">train_df</span>
             <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_val_df</span> <span class="o">=</span> <span class="n">val_df</span>
             <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_test_df</span> <span class="o">=</span> <span class="n">test_df</span>
-<span class="c1">#             self.sample_from_df()</span>
-
-    <span class="k">def</span> <span class="nf">sample_from_df</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">sample_train_df</span><span class="p">,</span> <span class="n">sample_val_df</span><span class="p">,</span> <span class="n">sample_test_df</span> <span class="o">=</span> <span class="n">sample_df</span><span class="p">(</span><span class="n">DataGenerator</span><span class="o">.</span><span class="n">_train_df</span><span class="p">,</span> <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_val_df</span><span class="p">,</span> <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_test_df</span><span class="p">)</span>
-        <span class="n">train_augment_df</span><span class="p">,</span> <span class="n">val_augment_df</span><span class="p">,</span> <span class="n">test_augment_df</span> <span class="o">=</span> <span class="n">img_augmentation</span><span class="p">(</span><span class="n">sample_train_df</span><span class="p">,</span> <span class="n">sample_val_df</span><span class="p">,</span> <span class="n">sample_test_df</span><span class="p">)</span>
-        <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_X_train</span><span class="p">,</span> <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_y_train</span><span class="p">,</span> <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_X_valid</span><span class="p">,</span> <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_y_valid</span> <span class="o">=</span> <span class="n">convert_to_np_array</span><span class="p">(</span><span class="n">train_augment_df</span><span class="p">,</span> <span class="n">val_augment_df</span><span class="p">,</span> <span class="n">test_augment_df</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="s1">&#39;Denotes the number of batches per epoch&#39;</span>
@@ -12515,14 +12427,21 @@ div#notebook {
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
             <span class="k">if</span> <span class="p">((</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">train_batch_size</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">train_size</span><span class="p">)</span> <span class="ow">or</span> <span class="p">((</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">test_batch_size</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">test_size</span><span class="p">):</span>
                 <span class="n">index</span> <span class="o">=</span> <span class="mi">0</span>    
+            
+            <span class="c1"># slice batch of df</span>
             <span class="n">batch_train_df</span> <span class="o">=</span> <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_train_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">index</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">train_batch_size</span><span class="p">:(</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">train_batch_size</span><span class="p">]</span>
             <span class="n">batch_test_df</span> <span class="o">=</span> <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_test_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">index</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">test_batch_size</span><span class="p">:(</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">test_batch_size</span><span class="p">]</span>
+            
+            <span class="c1"># image augmentation</span>
             <span class="n">train_augment_df</span> <span class="o">=</span> <span class="n">_img_augmentation</span><span class="p">(</span><span class="n">batch_train_df</span><span class="p">)</span>
             <span class="n">test_augment_df</span> <span class="o">=</span> <span class="n">_img_augmentation</span><span class="p">(</span><span class="n">batch_test_df</span><span class="p">)</span>
+            
+            <span class="c1"># convert to np and concat train and test</span>
             <span class="n">X_train_np</span><span class="p">,</span> <span class="n">y_train_np</span> <span class="o">=</span> <span class="n">_convert_to_np_array</span><span class="p">(</span><span class="n">train_augment_df</span><span class="p">)</span>
             <span class="n">X_test_np</span><span class="p">,</span> <span class="n">y_test_np</span> <span class="o">=</span> <span class="n">_convert_to_np_array</span><span class="p">(</span><span class="n">test_augment_df</span><span class="p">)</span>
             <span class="n">X_train_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">X_train_np</span><span class="p">,</span><span class="n">X_test_np</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
             <span class="n">y_train_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">y_train_np</span><span class="p">,</span><span class="n">y_test_np</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            
             <span class="k">return</span> <span class="n">X_train_np</span><span class="p">,</span> <span class="n">y_train_np</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">batch_val_df</span> <span class="o">=</span> <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_val_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">index</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">val_batch_size</span><span class="p">:(</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">val_batch_size</span><span class="p">]</span>
@@ -12534,16 +12453,23 @@ div#notebook {
         <span class="s1">&#39;Updates indexes after each epoch&#39;</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;, epoch=</span><span class="si">{self.epoch}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">epoch</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">epoch</span> <span class="o">%</span> <span class="mi">5</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">epoch</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">temperal_epoch</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
             <span class="n">new_test_df</span> <span class="o">=</span> <span class="n">calculate_test_temperal_mask</span><span class="p">()</span>
             <span class="n">DataGenerator</span><span class="o">.</span><span class="n">_test_df</span> <span class="o">=</span> <span class="n">new_test_df</span>
-<span class="c1">#             self.sample_from_df()</span>
 </pre></div>
 
 </div>
 </div>
 </div>
 
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Build-Unet-+-Resnet">Build Unet + Resnet<a class="anchor-link" href="#Build-Unet-+-Resnet">&#182;</a></h1>
+</div>
+</div>
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
@@ -12811,7 +12737,7 @@ ________________________________________________________________________________
 <div class="prompt input_prompt">In&nbsp;[19]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="n">epochs</span> <span class="o">=</span> <span class="mi">50</span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">epochs</span> <span class="o">=</span> <span class="mi">100</span>
 <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">32</span>
 <span class="n">callbacks</span> <span class="o">=</span> <span class="p">[</span>
     <span class="n">EarlyStopping</span><span class="p">(</span><span class="n">patience</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">monitor</span><span class="o">=</span><span class="s2">&quot;val_mask_mean_iou&quot;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;max&quot;</span><span class="p">),</span>
@@ -12827,9 +12753,6 @@ ________________________________________________________________________________
                     <span class="n">epochs</span><span class="o">=</span><span class="n">epochs</span><span class="p">,</span> <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
                     <span class="n">use_multiprocessing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                     <span class="n">workers</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
-
-<span class="c1"># history = model_train.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,</span>
-<span class="c1">#                     validation_data=(X_valid, y_valid))</span>
 </pre></div>
 
 </div>
@@ -12916,10 +12839,10 @@ val lenght
 
  
  
-<div id="8be2ded4-d6f1-42a9-8261-b112365455ef"></div>
+<div id="d70b9c68-1aa8-4814-9d98-5e6cd8a03228"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#8be2ded4-d6f1-42a9-8261-b112365455ef');
+var element = $('#d70b9c68-1aa8-4814-9d98-5e6cd8a03228');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "d96828cb18ef4fa8b92dfafe4f3f3e83", "version_major": 2, "version_minor": 0}
@@ -12949,10 +12872,10 @@ var element = $('#8be2ded4-d6f1-42a9-8261-b112365455ef');
 
  
  
-<div id="eab602f1-7603-40ec-b79b-3f8c3eeafe4f"></div>
+<div id="eaea8d07-698f-4dc5-8065-02b6d09d2438"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#eab602f1-7603-40ec-b79b-3f8c3eeafe4f');
+var element = $('#eaea8d07-698f-4dc5-8065-02b6d09d2438');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "1dd629ee75724f6397b5443c43cb75f2", "version_major": 2, "version_minor": 0}
@@ -13036,10 +12959,10 @@ val lenght
 
  
  
-<div id="dca9ae56-e9f4-4842-8218-aee11bfc9038"></div>
+<div id="f4e12128-8c30-478c-9ae7-c6972c352c14"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#dca9ae56-e9f4-4842-8218-aee11bfc9038');
+var element = $('#f4e12128-8c30-478c-9ae7-c6972c352c14');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "4ad001de59ee45e7801fe8cc6af15975", "version_major": 2, "version_minor": 0}
@@ -13070,10 +12993,10 @@ var element = $('#dca9ae56-e9f4-4842-8218-aee11bfc9038');
 
  
  
-<div id="f391cc75-6caa-40fa-88b8-409671eb65a7"></div>
+<div id="f7c59321-0dcf-4502-b639-279e825b0e7c"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#f391cc75-6caa-40fa-88b8-409671eb65a7');
+var element = $('#f7c59321-0dcf-4502-b639-279e825b0e7c');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "7fe66ba6a39944478f5b573efe89eb34", "version_major": 2, "version_minor": 0}
@@ -13154,10 +13077,10 @@ val lenght
 
  
  
-<div id="5793cfb3-7633-45f0-8bea-0b1bfc446034"></div>
+<div id="55250e1b-ef61-4386-bc93-9eed82ce44f8"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#5793cfb3-7633-45f0-8bea-0b1bfc446034');
+var element = $('#55250e1b-ef61-4386-bc93-9eed82ce44f8');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "1d7a4fb395d44083ad494544df06f182", "version_major": 2, "version_minor": 0}
@@ -13188,10 +13111,10 @@ var element = $('#5793cfb3-7633-45f0-8bea-0b1bfc446034');
 
  
  
-<div id="98393365-b140-485b-9dcb-91f2ce03553a"></div>
+<div id="d4d30579-abd5-4ea4-8c0a-8927bf7a2f46"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#98393365-b140-485b-9dcb-91f2ce03553a');
+var element = $('#d4d30579-abd5-4ea4-8c0a-8927bf7a2f46');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "51b181af7cde405a8cc9b004ac102ca4", "version_major": 2, "version_minor": 0}
@@ -13272,10 +13195,10 @@ val lenght
 
  
  
-<div id="dfd3e8c4-55c8-4b66-a625-4917f0c96a97"></div>
+<div id="0cf9f82e-fd02-444b-a37d-ce0d8596bee1"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#dfd3e8c4-55c8-4b66-a625-4917f0c96a97');
+var element = $('#0cf9f82e-fd02-444b-a37d-ce0d8596bee1');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "a5d2bf261e3f41a885ea9636e0843527", "version_major": 2, "version_minor": 0}
@@ -13306,10 +13229,10 @@ var element = $('#dfd3e8c4-55c8-4b66-a625-4917f0c96a97');
 
  
  
-<div id="45f72877-026b-4d45-85cc-c496f1370941"></div>
+<div id="586cf5bb-5256-4085-80e0-4ce87a83f7e1"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#45f72877-026b-4d45-85cc-c496f1370941');
+var element = $('#586cf5bb-5256-4085-80e0-4ce87a83f7e1');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "13dcde65bb7c4e3e930bb882b9d066f4", "version_major": 2, "version_minor": 0}
@@ -13392,10 +13315,10 @@ val lenght
 
  
  
-<div id="61b6213d-44e0-4afa-acf2-afeba906b1cd"></div>
+<div id="0ccdc5b5-870f-4790-86c0-e1c82ec53fee"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#61b6213d-44e0-4afa-acf2-afeba906b1cd');
+var element = $('#0ccdc5b5-870f-4790-86c0-e1c82ec53fee');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "6983156bc86a4155b01a0156ea8d568a", "version_major": 2, "version_minor": 0}
@@ -13426,10 +13349,10 @@ var element = $('#61b6213d-44e0-4afa-acf2-afeba906b1cd');
 
  
  
-<div id="5f86eb1b-1ed8-49ef-8e86-e8ec8d78c333"></div>
+<div id="47854504-ad53-43e4-bf08-ff26115a0b75"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#5f86eb1b-1ed8-49ef-8e86-e8ec8d78c333');
+var element = $('#47854504-ad53-43e4-bf08-ff26115a0b75');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "18f1020cd1d54d7287441991da640512", "version_major": 2, "version_minor": 0}
@@ -13510,10 +13433,10 @@ val lenght
 
  
  
-<div id="c1555b25-0d99-4792-9e26-ff987e55522f"></div>
+<div id="a870383c-90ae-4bc7-8dcd-d5db2d319671"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#c1555b25-0d99-4792-9e26-ff987e55522f');
+var element = $('#a870383c-90ae-4bc7-8dcd-d5db2d319671');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "7caf8a4d5c214d2289506129245d276b", "version_major": 2, "version_minor": 0}
@@ -13544,10 +13467,10 @@ var element = $('#c1555b25-0d99-4792-9e26-ff987e55522f');
 
  
  
-<div id="43a998bd-8aee-420f-bc52-263e933e2117"></div>
+<div id="a7edc8e1-e134-4efe-8ed6-f86083a4f346"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#43a998bd-8aee-420f-bc52-263e933e2117');
+var element = $('#a7edc8e1-e134-4efe-8ed6-f86083a4f346');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "607c96ef8c2a482fb2e7d65f0323fca0", "version_major": 2, "version_minor": 0}
@@ -13628,10 +13551,10 @@ val lenght
 
  
  
-<div id="298df681-53e0-4d44-9958-81076113f9f6"></div>
+<div id="91b164b3-b9b1-4fb4-9c90-c477253f0483"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#298df681-53e0-4d44-9958-81076113f9f6');
+var element = $('#91b164b3-b9b1-4fb4-9c90-c477253f0483');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "105dfc0c52ca4a7b91d39a0ed1ab4bf8", "version_major": 2, "version_minor": 0}
@@ -13662,10 +13585,10 @@ var element = $('#298df681-53e0-4d44-9958-81076113f9f6');
 
  
  
-<div id="d5394696-5596-4b12-b684-ec74e2fc1e2f"></div>
+<div id="93332fa7-13b5-4fae-833a-e9d99344078c"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#d5394696-5596-4b12-b684-ec74e2fc1e2f');
+var element = $('#93332fa7-13b5-4fae-833a-e9d99344078c');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "47b092fe54764abfa1d5b2ecb14b0b11", "version_major": 2, "version_minor": 0}
@@ -13746,10 +13669,10 @@ val lenght
 
  
  
-<div id="764dbd10-5915-4ee5-b5c2-527ed5f09052"></div>
+<div id="f0e3db56-1102-4be8-9f63-93afd054eb90"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#764dbd10-5915-4ee5-b5c2-527ed5f09052');
+var element = $('#f0e3db56-1102-4be8-9f63-93afd054eb90');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "9b6a2b9d56cc4a46b73d7fdf224b68b8", "version_major": 2, "version_minor": 0}
@@ -13780,10 +13703,10 @@ var element = $('#764dbd10-5915-4ee5-b5c2-527ed5f09052');
 
  
  
-<div id="f1e1eb88-a00e-4309-b741-594d1c50514e"></div>
+<div id="d98ecb8f-1eef-4671-a0fc-f0047d9294bc"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#f1e1eb88-a00e-4309-b741-594d1c50514e');
+var element = $('#d98ecb8f-1eef-4671-a0fc-f0047d9294bc');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "3aeea38b09204f52b5e56b0ee7d35e21", "version_major": 2, "version_minor": 0}
@@ -13864,10 +13787,10 @@ val lenght
 
  
  
-<div id="156042ff-8c85-4a0d-8a7d-bd31ae115c17"></div>
+<div id="df8e80d7-9ed1-4c39-b3c5-529c06cbdc71"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#156042ff-8c85-4a0d-8a7d-bd31ae115c17');
+var element = $('#df8e80d7-9ed1-4c39-b3c5-529c06cbdc71');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "2fdb0380e0964dfd81c92485dbbe4f15", "version_major": 2, "version_minor": 0}
@@ -13898,10 +13821,10 @@ var element = $('#156042ff-8c85-4a0d-8a7d-bd31ae115c17');
 
  
  
-<div id="0fa9a3b1-361a-4bff-aa0d-2dc86ac688be"></div>
+<div id="f6a5265a-010b-4eec-bbfe-59e796b2b8d5"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#0fa9a3b1-361a-4bff-aa0d-2dc86ac688be');
+var element = $('#f6a5265a-010b-4eec-bbfe-59e796b2b8d5');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "e471222112a340e989ccb96804d2c26f", "version_major": 2, "version_minor": 0}
@@ -13982,10 +13905,10 @@ val lenght
 
  
  
-<div id="0fd4acaa-af81-4fa4-bc24-33c302ef251a"></div>
+<div id="86aa4d99-e0c9-409b-a0ba-6c9840940468"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#0fd4acaa-af81-4fa4-bc24-33c302ef251a');
+var element = $('#86aa4d99-e0c9-409b-a0ba-6c9840940468');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "1a9e541f0334440eb3b50c077dae8129", "version_major": 2, "version_minor": 0}
@@ -14016,10 +13939,10 @@ var element = $('#0fd4acaa-af81-4fa4-bc24-33c302ef251a');
 
  
  
-<div id="0dba4cf8-72fe-4e0f-acb9-600371434a0b"></div>
+<div id="543af58b-1b37-4e08-86f7-306db4291cbe"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#0dba4cf8-72fe-4e0f-acb9-600371434a0b');
+var element = $('#543af58b-1b37-4e08-86f7-306db4291cbe');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "a57f7fe92eed407c889ae6227ea0d994", "version_major": 2, "version_minor": 0}
@@ -14343,10 +14266,10 @@ Epoch 00050: val_mask_mean_iou improved from 0.91487 to 0.91517, saving model to
 
  
  
-<div id="2b08951d-6200-4866-ac76-2585c03192c0"></div>
+<div id="c4a49642-6a60-4fc3-ac7c-7ae14e476735"></div>
 <div class="output_subarea output_widget_view ">
 <script type="text/javascript">
-var element = $('#2b08951d-6200-4866-ac76-2585c03192c0');
+var element = $('#c4a49642-6a60-4fc3-ac7c-7ae14e476735');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "b077c2d0cb8d46b1a523cc43550b5859", "version_major": 2, "version_minor": 0}
