@@ -3,8 +3,10 @@
 
 # ### NOW EXPERIMENTING:
 # Pinet:
+# * add some random noice
 # * custom data generate to update test temperal mask every n epoch
 # * change unsupervise loss weight on the fly
+# * used full model (without dropout) for validation and prediction
 # 
 # 
 # ### Done:
@@ -12,7 +14,7 @@
 # * apply test data mask if its none (no temperal mask)
 # * basic augmentation twice for pinet
 # * custom pi net loss function
-# 
+# * move prediction into here as it used custom function
 # 
 # ### work: 
 # * image data augmentation, flip, crop,
@@ -236,7 +238,7 @@ def _img_augmentation(_df):
         augment_df = pd.DataFrame()
         for index, row in df.iterrows():
             # np.random.seed(0)
-            crop = np.random.randint(low=1, high=10, size=4)
+            crop = np.random.randint(low=1, high=30, size=4)
             flip = np.random.choice([True, False])
             aug_img = random_crop_resize(row['img'], crop, flip)
             aug_img_mask = random_crop_resize(row['img_mask'], crop, flip)
@@ -269,7 +271,7 @@ def calculate_test_temperal_mask():
     global model_train, test_df, graph_train
     with graph_train.as_default():
         X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
-        predict_test = model_train.predict(X_test,batch_size=16, verbose=1)
+        predict_test = model_train.predict(X_test,batch_size=64, verbose=1)
         predict_test = np.squeeze(predict_test)
     
     for index, row in tqdm_notebook(test_df.iterrows(),total=len(test_df.index)):
@@ -592,25 +594,22 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
 
 # used for training unsuperivsed, that keep dropout
 global model_train, graph_train
-model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=True)
+model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.5, training=True)
 model_train.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_train.summary()
 graph_train = tf.get_default_graph()
 
-# # used for predict, no dropout
-# model_predict = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=False)
-# model_predict.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 
-
-# In[19]:
+# In[12]:
 
 
 epochs = 100
-batch_size = 32
+batch_size = 64
 callbacks = [
     EarlyStopping(patience=10, verbose=1, monitor="val_mask_mean_iou", mode="max"),
     ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),
-    ModelCheckpoint('model-unet-resnet.h5', verbose=1, save_best_only=True, monitor="val_mask_mean_iou", mode="max"),
+    ModelCheckpoint('model-u-res-pi-net.h5', verbose=1, save_best_only=True, monitor="val_mask_mean_iou", mode="max"),
+    ModelCheckpoint('weight-u-res-pi-net.h5', verbose=1, save_best_only=True, monitor="val_mask_mean_iou", mode="max", save_weights_only=True),
 ]
 
 training_generator = DataGenerator(train_df, val_df, test_df, training=True)
@@ -620,10 +619,10 @@ history = model_train.fit_generator(generator=training_generator,
                     validation_data=validation_generator,
                     epochs=epochs, callbacks=callbacks,
                     use_multiprocessing=True,
-                    workers=10)
+                    workers=4)
 
 
-# In[20]:
+# In[13]:
 
 
 fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
@@ -635,17 +634,24 @@ ax_iou.plot(history.epoch, history.history["temperal_mean_iou"], label="Train te
 ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Validation temperal iou")
 
 
-# In[21]:
+# # Fine tune threshold
+
+# In[19]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
 
+# # used for predict, no dropout
+model_predict = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.0, training=False)
+model_predict.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
+model_predict.set_weights(model_train.get_weights())
+
 X_valid = np.expand_dims(np.stack((np.asarray(val_df['img'].values.tolist()))),axis=3)
 y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
-preds_valid = model_train.predict(X_valid, batch_size=32, verbose=1)
+preds_valid = model_predict.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[22]:
+# In[20]:
 
 
 # plot some validate result
@@ -674,7 +680,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[23]:
+# In[16]:
 
 
 # plot some temperal mask on test results
@@ -698,7 +704,7 @@ for i, idx in enumerate(test_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[24]:
+# In[21]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -775,7 +781,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[25]:
+# In[22]:
 
 
 threshold_best_index = np.argmax(ious)
@@ -790,4 +796,128 @@ plt.xlabel("Threshold")
 plt.ylabel("IoU")
 plt.title("Threshold vs IoU ({}, {})".format(threshold_best, iou_best))
 plt.legend()
+
+
+# # Predict test data
+
+# In[23]:
+
+
+img_size_ori = 101
+img_size_target = 128
+
+def upsample(img):
+    if img_size_ori == img_size_target:
+        return img
+    return resize(img, (img_size_target, img_size_target), mode='constant', preserve_range=True)
+    #res = np.zeros((img_size_target, img_size_target), dtype=img.dtype)
+    #res[:img_size_ori, :img_size_ori] = img
+    #return res
+    
+def downsample(img):
+    if img_size_ori == img_size_target:
+        return img
+    return resize(img, (img_size_ori, img_size_ori), mode='constant', preserve_range=True)
+    #return img[:img_size_ori, :img_size_ori]
+    
+# Source https://www.kaggle.com/bguberfain/unet-with-depth
+def RLenc(img, order='F', format=True):
+    """
+    img is binary mask image, shape (r,c)
+    order is down-then-right, i.e. Fortran
+    format determines if the order needs to be preformatted (according to submission rules) or not
+
+    returns run length as an array or string (if format is True)
+    """
+    bytes = img.reshape(img.shape[0] * img.shape[1], order=order)
+    runs = []  ## list of run lengths
+    r = 0  ## the current run length
+    pos = 1  ## count starts from 1 per WK
+    for c in bytes:
+        if (c == 0):
+            if r != 0:
+                runs.append((pos, r))
+                pos += r
+                r = 0
+            pos += 1
+        else:
+            r += 1
+
+    # if last run is unsaved (i.e. data ends with 1)
+    if r != 0:
+        runs.append((pos, r))
+        pos += r
+        r = 0
+
+    if format:
+        z = ''
+
+        for rr in runs:
+            z += '{} {} '.format(rr[0], rr[1])
+        return z[:-1]
+    else:
+        return runs
+
+
+# In[25]:
+
+
+X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
+preds_test = model_predict.predict(X_test, batch_size=32, verbose=1)
+final_preds_test = preds_test > threshold_best
+
+
+# In[35]:
+
+
+base_idx = 160
+max_images = 32
+grid_width = 4
+grid_height = int(max_images / grid_width)
+fig, axs = plt.subplots(grid_height, grid_width, figsize=(20, 20))
+row = 0; col = 0;
+for i in range(base_idx,base_idx+int(max_images)):
+    img = X_test[i].squeeze()
+    mask = preds_test[i].squeeze()
+    
+    ax = axs[row, col];
+    ax.imshow(img, cmap="seismic")
+    ax.imshow(mask, alpha=0.5, cmap="Reds"); col+=1;
+    ax.set_yticklabels([]); ax.set_xticklabels([]);
+    
+    if col >= grid_width:
+        col=0; row+=1;
+
+
+# In[36]:
+
+
+base_idx = 160
+max_images = 32
+grid_width = 4
+grid_height = int(max_images / grid_width)
+fig, axs = plt.subplots(grid_height, grid_width, figsize=(20, 20))
+row = 0; col = 0;
+for i in range(base_idx,base_idx+int(max_images)):
+    img = X_test[i].squeeze()
+    mask = final_preds_test[i].squeeze()
+    
+    ax = axs[row, col];
+    ax.imshow(img, cmap="seismic")
+    ax.imshow(mask, alpha=0.5, cmap="Reds"); col+=1;
+    ax.set_yticklabels([]); ax.set_xticklabels([]);
+    
+    if col >= grid_width:
+        col=0; row+=1;
+
+
+# In[37]:
+
+
+threshold_best=threshold_best
+pred_dict = {idx: RLenc(np.round(downsample(preds_test[i]) > threshold_best)) for i, idx in enumerate(tqdm_notebook(test_df.img_id.values))}
+sub = pd.DataFrame.from_dict(pred_dict,orient='index')
+sub.index.names = ['id']
+sub.columns = ['rle_mask']
+sub.to_csv('submission_pinet.csv')
 
