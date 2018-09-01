@@ -448,13 +448,13 @@ def mask_mean_iou(y_true, y_pred):
 def temperal_mean_iou(y_true, y_pred):
     y_temperal = tf.slice(y_true, [0, 0, 0, 1], [-1, -1, -1, 1])
     temperal_filter = tf.cast(tf.not_equal(y_temperal, -1), tf.float32)
-    temperal_mean_iou = mean_iou(temperal_filter*y_temperal, temperal_filter*y_pred)
+    temperal_mean_iou = mean_iou(temperal_filter*(y_temperal>0.5), temperal_filter*y_pred)
     return temperal_mean_iou
 
 def temporal_loss(y_true, y_pred):
     sup_loss = masked_crossentropy(y_true, y_pred)
     unsup_loss = temperal_mse_loss(y_true, y_pred)
-    w = 0.01
+    w = 0.05
     
     return sup_loss + w * unsup_loss
 
@@ -603,7 +603,7 @@ graph_train = tf.get_default_graph()
 # In[12]:
 
 
-epochs = 100
+epochs = 200
 batch_size = 64
 callbacks = [
     EarlyStopping(patience=10, verbose=1, monitor="val_mask_mean_iou", mode="max"),
@@ -622,12 +622,14 @@ history = model_train.fit_generator(generator=training_generator,
                     workers=4)
 
 
-# In[13]:
+# In[27]:
 
 
-fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
+fig, (ax_loss, ax_temp_loss, ax_acc, ax_iou) = plt.subplots(1,4, figsize=(15,5))
 ax_loss.plot(history.epoch, history.history["loss"], label="Train loss")
 ax_loss.plot(history.epoch, history.history["val_loss"], label="Validation loss")
+ax_temp_loss.plot(history.epoch, history.history["temperal_mse_loss"], label="Train loss")
+# ax_temp_loss.plot(history.epoch, history.history["val_temperal_mse_loss"], label="Validation loss")
 ax_acc.plot(history.epoch, history.history["mask_mean_iou"], label="Train mask iou")
 ax_acc.plot(history.epoch, history.history["val_mask_mean_iou"], label="Validation mask iou")
 ax_iou.plot(history.epoch, history.history["temperal_mean_iou"], label="Train temperal iou")
@@ -636,7 +638,7 @@ ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Vali
 
 # # Fine tune threshold
 
-# In[19]:
+# In[14]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -651,7 +653,7 @@ y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 preds_valid = model_predict.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[20]:
+# In[15]:
 
 
 # plot some validate result
@@ -704,7 +706,7 @@ for i, idx in enumerate(test_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[21]:
+# In[17]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -781,7 +783,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[22]:
+# In[18]:
 
 
 threshold_best_index = np.argmax(ious)
@@ -800,7 +802,7 @@ plt.legend()
 
 # # Predict test data
 
-# In[23]:
+# In[19]:
 
 
 img_size_ori = 101
@@ -859,7 +861,7 @@ def RLenc(img, order='F', format=True):
         return runs
 
 
-# In[25]:
+# In[20]:
 
 
 X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
@@ -867,7 +869,7 @@ preds_test = model_predict.predict(X_test, batch_size=32, verbose=1)
 final_preds_test = preds_test > threshold_best
 
 
-# In[35]:
+# In[21]:
 
 
 base_idx = 160
@@ -889,7 +891,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[36]:
+# In[22]:
 
 
 base_idx = 160
@@ -911,7 +913,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[37]:
+# In[23]:
 
 
 threshold_best=threshold_best
