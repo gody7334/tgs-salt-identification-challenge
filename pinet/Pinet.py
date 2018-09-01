@@ -448,7 +448,7 @@ def mask_mean_iou(y_true, y_pred):
 def temperal_mean_iou(y_true, y_pred):
     y_temperal = tf.slice(y_true, [0, 0, 0, 1], [-1, -1, -1, 1])
     temperal_filter = tf.cast(tf.not_equal(y_temperal, -1), tf.float32)
-    temperal_mean_iou = mean_iou(temperal_filter*(y_temperal>0.5), temperal_filter*y_pred)
+    temperal_mean_iou = mean_iou(temperal_filter*(tf.cast(tf.greater(y_temperal,0.5), tf.float32)), temperal_filter*y_pred)
     return temperal_mean_iou
 
 def temporal_loss(y_true, y_pred):
@@ -603,7 +603,7 @@ graph_train = tf.get_default_graph()
 # In[12]:
 
 
-epochs = 200
+epochs = 100
 batch_size = 64
 callbacks = [
     EarlyStopping(patience=10, verbose=1, monitor="val_mask_mean_iou", mode="max"),
@@ -622,7 +622,7 @@ history = model_train.fit_generator(generator=training_generator,
                     workers=4)
 
 
-# In[27]:
+# In[13]:
 
 
 fig, (ax_loss, ax_temp_loss, ax_acc, ax_iou) = plt.subplots(1,4, figsize=(15,5))
