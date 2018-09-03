@@ -594,7 +594,7 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
 
 # used for training unsuperivsed, that keep dropout
 global model_train, graph_train
-model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.5, training=True)
+model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=6,batchnorm=True, dropout=0.5, training=True)
 model_train.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_train.summary()
 graph_train = tf.get_default_graph()
@@ -644,7 +644,7 @@ ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Vali
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
 
 # # used for predict, no dropout
-model_predict = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.0, training=False)
+model_predict = UNet((img_size_target,img_size_target,1),start_ch=16,depth=6,batchnorm=True, dropout=0.0, training=False)
 model_predict.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_predict.set_weights(model_train.get_weights())
 
