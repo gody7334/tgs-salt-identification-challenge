@@ -36,7 +36,7 @@
 # * inception block
 # 
 
-# In[1]:
+# In[36]:
 
 
 import numpy as np
@@ -55,8 +55,13 @@ from skimage.transform import resize
 from sklearn.model_selection import train_test_split
 from random import randint
 from skimage import exposure
+from skimage.color import gray2rgb
+from skimage.color import rgb2gray
 from tqdm import tqdm_notebook
 import gc
+import pydensecrf.densecrf as dcrf
+from pydensecrf.utils import unary_from_labels, create_pairwise_bilateral
+
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 import matplotlib.pyplot as plt
@@ -594,7 +599,7 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
 
 # used for training unsuperivsed, that keep dropout
 global model_train, graph_train
-model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=6,batchnorm=True, dropout=0.5, training=True)
+model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.5, training=True)
 model_train.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_train.summary()
 graph_train = tf.get_default_graph()
@@ -644,7 +649,7 @@ ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Vali
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
 
 # # used for predict, no dropout
-model_predict = UNet((img_size_target,img_size_target,1),start_ch=16,depth=6,batchnorm=True, dropout=0.0, training=False)
+model_predict = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.0, training=False)
 model_predict.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_predict.set_weights(model_train.get_weights())
 
@@ -891,7 +896,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[22]:
+# In[24]:
 
 
 base_idx = 160
@@ -913,6 +918,81 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
+# # Apply CRF
+
+# In[25]:
+
+
+#Original_image = Image which has to labelled
+#Mask image = Which has been labelled by some technique..
+def crf(original_image, mask_img):
+    
+    # Converting annotated image to RGB if it is Gray scale
+    if(len(mask_img.shape)<3):
+        mask_img = gray2rgb(mask_img)
+
+#     #Converting the annotations RGB color to single 32 bit integer
+    annotated_label = mask_img[:,:,0] + (mask_img[:,:,1]<<8) + (mask_img[:,:,2]<<16)
+    
+#     # Convert the 32bit integer color to 0,1, 2, ... labels.
+    colors, labels = np.unique(annotated_label, return_inverse=True)
+
+    n_labels = 2
+    
+    #Setting up the CRF model
+    d = dcrf.DenseCRF2D(original_image.shape[1], original_image.shape[0], n_labels)
+
+    # get unary potentials (neg log probability)
+    U = unary_from_labels(labels, n_labels, gt_prob=0.7, zero_unsure=False)
+    d.setUnaryEnergy(U)
+
+    # This adds the color-independent term, features are the locations only.
+    d.addPairwiseGaussian(sxy=(3, 3), compat=3, kernel=dcrf.DIAG_KERNEL,
+                      normalization=dcrf.NORMALIZE_SYMMETRIC)
+        
+    #Run Inference for 10 steps 
+    Q = d.inference(10)
+
+    # Find out the most probable class for each pixel.
+    MAP = np.argmax(Q, axis=0)
+
+    return MAP.reshape((original_image.shape[0],original_image.shape[1]))
+
+
+# In[41]:
+
+
+"""
+Applying CRF on the predicted mask 
+
+"""
+crf_output = []
+for i in tqdm(range(X_test.shape[0])):
+    crf_output.append(crf(np.squeeze(X_test[i]),np.squeeze(final_preds_test[i])))
+
+
+# In[42]:
+
+
+base_idx = 160
+max_images = 32
+grid_width = 4
+grid_height = int(max_images / grid_width)
+fig, axs = plt.subplots(grid_height, grid_width, figsize=(20, 20))
+row = 0; col = 0;
+for i in range(base_idx,base_idx+int(max_images)):
+    img = X_test[i].squeeze()
+    mask = crf_output[i].squeeze()
+    
+    ax = axs[row, col];
+    ax.imshow(img, cmap="seismic")
+    ax.imshow(mask, alpha=0.5, cmap="Reds"); col+=1;
+    ax.set_yticklabels([]); ax.set_xticklabels([]);
+    
+    if col >= grid_width:
+        col=0; row+=1;
+
+
 # In[23]:
 
 
@@ -921,5 +1001,5 @@ pred_dict = {idx: RLenc(np.round(downsample(preds_test[i]) > threshold_best)) fo
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')
 sub.index.names = ['id']
 sub.columns = ['rle_mask']
-sub.to_csv('submission_pinet.csv')
+sub.to_csv('submission_pinet_crf.csv')
 
