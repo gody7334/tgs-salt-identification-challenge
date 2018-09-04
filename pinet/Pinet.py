@@ -36,7 +36,7 @@
 # * inception block
 # 
 
-# In[36]:
+# In[1]:
 
 
 import numpy as np
@@ -57,7 +57,10 @@ from random import randint
 from skimage import exposure
 from skimage.color import gray2rgb
 from skimage.color import rgb2gray
+from skimage import transform
+from skimage import util
 from tqdm import tqdm_notebook
+import skimage as sk
 import gc
 import pydensecrf.densecrf as dcrf
 from pydensecrf.utils import unary_from_labels, create_pairwise_bilateral
@@ -232,9 +235,56 @@ print(test_df.shape)
 # In[6]:
 
 
+def noisy(noise_typ,image):
+   if noise_typ == "gauss":
+      row,col,ch= image.shape
+      mean = 0
+      var = 0.01
+      sigma = var**0.5
+      gauss = np.random.normal(mean,sigma,(row,col,ch))
+      gauss = gauss.reshape(row,col,ch)
+      noisy = image + gauss
+      return noisy
+   elif noise_typ == "s&p":
+      row,col,ch = image.shape
+      s_vs_p = 0.5
+      amount = 0.004
+      out = np.copy(image)
+      # Salt mode
+      num_salt = np.ceil(amount * image.size * s_vs_p)
+      coords = [np.random.randint(0, i, int(num_salt))
+              for i in image.shape]
+      out[coords] = 1
+
+      # Pepper mode
+      num_pepper = np.ceil(amount* image.size * (1. - s_vs_p))
+      coords = [np.random.randint(0, i, int(num_pepper))
+              for i in image.shape]
+      out[coords] = 0
+      return out
+   elif noise_typ == "poisson":
+      vals = len(np.unique(image))
+      vals = 2 ** np.ceil(np.log2(vals))
+      noisy = np.random.poisson(image * vals) / float(vals)
+      return noisy
+   elif noise_typ =="speckle":
+      row,col,ch = image.shape
+      gauss = np.random.randn(row,col,ch)
+      gauss = gauss.reshape(row,col,ch)        
+      noisy = image + image * gauss
+      return noisy
+   elif noise_typ == 'None':
+      return image
+
 def _img_augmentation(_df):
-    def random_crop_resize(x, crop, flip):
+    def random_crop_resize(x, crop, flip, degree, noise_type='None'):
+        # return x if all pixel is -1
+        if np.mean(x) == -1:
+            return x
+        
         x = np.fliplr(x) if flip else x
+        x = np.squeeze(noisy(noise_type, np.expand_dims(x, axis=3)))
+        x = sk.transform.rotate(x, degree)
         x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
         x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)
         return x
@@ -243,11 +293,14 @@ def _img_augmentation(_df):
         augment_df = pd.DataFrame()
         for index, row in df.iterrows():
             # np.random.seed(0)
-            crop = np.random.randint(low=1, high=30, size=4)
+            crop = np.random.randint(low=1, high=20, size=4)
             flip = np.random.choice([True, False])
-            aug_img = random_crop_resize(row['img'], crop, flip)
-            aug_img_mask = random_crop_resize(row['img_mask'], crop, flip)
-            aug_img_temperal_mask = random_crop_resize(row['img_temperal_mask'], crop, flip)
+            degree = np.random.uniform(-10, 10)
+            noise_type = np.random.choice(['gauss', 'poisson', 's&p', 'speckle', 'None'])
+            
+            aug_img = random_crop_resize(row['img'], crop, flip, degree, noise_type)
+            aug_img_mask = random_crop_resize(row['img_mask'], crop, flip, degree)
+            aug_img_temperal_mask = random_crop_resize(row['img_temperal_mask'], crop, flip, degree)
 
             augment_df = augment_df.append(
                 {
@@ -282,7 +335,7 @@ def calculate_test_temperal_mask():
     for index, row in tqdm_notebook(test_df.iterrows(),total=len(test_df.index)):
         img_temperal_mask = row['img_temperal_mask']
         predict = predict_test[index]
-        if(np.mean(img_temperal_mask) == -1):
+        if(np.mean(img_temperal_mask) < 0):
             test_df.at[index,'img_temperal_mask'] = predict
         else:
             test_df.at[index,'img_temperal_mask'] = (img_temperal_mask + predict)/2
@@ -294,6 +347,9 @@ def calculate_test_temperal_mask():
 # In[7]:
 
 
+# sample_train_df = train_df.sample(50)
+# train_augment_df = _img_augmentation(sample_train_df)
+
 # %%time
 # sample_train_df, sample_val_df, sample_test_df = sample_df(train_df, val_df, test_df)
 # train_augment_df, val_augment_df, test_augment_df = img_augmentation(sample_train_df, sample_val_df, sample_test_df)
@@ -303,6 +359,12 @@ def calculate_test_temperal_mask():
 
 
 # In[8]:
+
+
+# train_augment_df.head(10)
+
+
+# In[9]:
 
 
 # base_idx = 0
@@ -327,7 +389,7 @@ def calculate_test_temperal_mask():
 
 # # Custom loss function
 
-# In[9]:
+# In[10]:
 
 
 from debug import _debug_func
@@ -466,7 +528,7 @@ def temporal_loss(y_true, y_pred):
 
 # # DataGenerator
 
-# In[10]:
+# In[11]:
 
 
 class DataGenerator(keras.utils.Sequence):
@@ -481,7 +543,7 @@ class DataGenerator(keras.utils.Sequence):
     _y_valid = None
     
     'Generates data for Keras'
-    def __init__(self, train_df, val_df, test_df, batch_size=32, shuffle=True, training=True, temperal_epoch=5):
+    def __init__(self, train_df, val_df, test_df, batch_size=32, shuffle=True, training=True, temperal_epoch=1):
         self.training = training
         self.batch_size = batch_size
         self.shuffle = shuffle
@@ -553,7 +615,7 @@ class DataGenerator(keras.utils.Sequence):
 
 # # Build Unet + Resnet
 
-# In[11]:
+# In[12]:
 
 
 # tensorflow session setting
@@ -599,13 +661,13 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
 
 # used for training unsuperivsed, that keep dropout
 global model_train, graph_train
-model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.5, training=True)
+model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.8, training=True)
 model_train.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_train.summary()
 graph_train = tf.get_default_graph()
 
 
-# In[12]:
+# In[13]:
 
 
 epochs = 100
@@ -627,7 +689,7 @@ history = model_train.fit_generator(generator=training_generator,
                     workers=4)
 
 
-# In[13]:
+# In[ ]:
 
 
 fig, (ax_loss, ax_temp_loss, ax_acc, ax_iou) = plt.subplots(1,4, figsize=(15,5))
@@ -643,7 +705,7 @@ ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Vali
 
 # # Fine tune threshold
 
-# In[14]:
+# In[ ]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -658,7 +720,7 @@ y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 preds_valid = model_predict.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[15]:
+# In[ ]:
 
 
 # plot some validate result
@@ -687,7 +749,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[16]:
+# In[ ]:
 
 
 # plot some temperal mask on test results
@@ -711,7 +773,7 @@ for i, idx in enumerate(test_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[17]:
+# In[ ]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -788,7 +850,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[18]:
+# In[ ]:
 
 
 threshold_best_index = np.argmax(ious)
@@ -807,7 +869,7 @@ plt.legend()
 
 # # Predict test data
 
-# In[19]:
+# In[ ]:
 
 
 img_size_ori = 101
@@ -866,7 +928,7 @@ def RLenc(img, order='F', format=True):
         return runs
 
 
-# In[20]:
+# In[ ]:
 
 
 X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
@@ -874,7 +936,7 @@ preds_test = model_predict.predict(X_test, batch_size=32, verbose=1)
 final_preds_test = preds_test > threshold_best
 
 
-# In[21]:
+# In[ ]:
 
 
 base_idx = 160
@@ -896,7 +958,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[24]:
+# In[ ]:
 
 
 base_idx = 160
@@ -920,7 +982,7 @@ for i in range(base_idx,base_idx+int(max_images)):
 
 # # Apply CRF
 
-# In[25]:
+# In[ ]:
 
 
 #Original_image = Image which has to labelled
@@ -959,7 +1021,7 @@ def crf(original_image, mask_img):
     return MAP.reshape((original_image.shape[0],original_image.shape[1]))
 
 
-# In[41]:
+# In[ ]:
 
 
 """
@@ -971,7 +1033,7 @@ for i in tqdm(range(X_test.shape[0])):
     crf_output.append(crf(np.squeeze(X_test[i]),np.squeeze(final_preds_test[i])))
 
 
-# In[42]:
+# In[ ]:
 
 
 base_idx = 160
@@ -993,11 +1055,11 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[23]:
+# In[ ]:
 
 
 threshold_best=threshold_best
-pred_dict = {idx: RLenc(np.round(downsample(preds_test[i]) > threshold_best)) for i, idx in enumerate(tqdm_notebook(test_df.img_id.values))}
+pred_dict = {idx: RLenc(np.round(downsample(crf_output[i]))) for i, idx in enumerate(tqdm_notebook(test_df.img_id.values))}
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')
 sub.index.names = ['id']
 sub.columns = ['rle_mask']
