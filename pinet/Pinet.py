@@ -2,6 +2,11 @@
 # coding: utf-8
 
 # ### NOW EXPERIMENTING:
+# Debug:
+# * loss is toooooooo high without any reason
+# * close augmentation: noise, rotation, no temperal predict, no temperal loss
+# * result should be similar to pure U-net result
+# 
 # Pinet:
 # * add some random noice
 # * custom data generate to update test temperal mask every n epoch
@@ -65,7 +70,7 @@ import gc
 import pydensecrf.densecrf as dcrf
 from pydensecrf.utils import unary_from_labels, create_pairwise_bilateral
 
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 import matplotlib.pyplot as plt
 plt.style.use('seaborn-white')
@@ -194,8 +199,8 @@ def read_resize_img(x, scale,mask=False):
     return img_np
 
 train_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$ne":None}}]})
-test_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]})
-# test_df = sample_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]})
+# test_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]})
+test_df = sample_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]}, num_sample=10)
 
 # train_df = train_df.loc[:20]
 
@@ -284,8 +289,8 @@ def _img_augmentation(_df):
             return x
         
         x = np.fliplr(x) if flip else x
-        x = np.squeeze(noisy(noise_type, np.expand_dims(x, axis=3)))
-        x = sk.transform.rotate(x, degree)
+#         x = np.squeeze(noisy(noise_type, np.expand_dims(x, axis=3)))
+#         x = sk.transform.rotate(x, degree)
         x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
         x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)
         return x
@@ -299,7 +304,7 @@ def _img_augmentation(_df):
             degree = np.random.uniform(-10, 10)
             noise_type = np.random.choice(['gauss', 'poisson', 's&p', 'speckle', 'None'])
             
-            aug_img = random_crop_resize(row['img'], crop, flip, degree, 'speckle')
+            aug_img = random_crop_resize(row['img'], crop, flip, degree, noise_type)
             aug_img_mask = random_crop_resize(row['img_mask'], crop, flip, degree)
             aug_img_temperal_mask = random_crop_resize(row['img_temperal_mask'], crop, flip, degree)
 
@@ -327,13 +332,26 @@ def _convert_to_np_array(_augment_df):
     
     return X_np, y_np
 
-def calculate_test_temperal_mask():
-    global model_train, test_df, graph_train
+def calculate_temperal_mask():
+    global model_train, train_df, test_df, graph_train
     with graph_train.as_default():
+        X_train = np.expand_dims(np.stack((np.asarray(train_df['img'].values.tolist()))),axis=3)
+        predict_train = model_train.predict(X_train,batch_size=64, verbose=1)
+        predict_train = np.squeeze(predict_train)
+        
         X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
         predict_test = model_train.predict(X_test,batch_size=64, verbose=1)
         predict_test = np.squeeze(predict_test)
     
+    idx = 0;
+    for index, row in tqdm_notebook(train_df.iterrows(),total=len(train_df.index)):
+        img_temperal_mask = row['img_temperal_mask']
+        predict = predict_train[idx]; idx+=1;
+        if(np.mean(img_temperal_mask) < 0):
+            train_df.at[index,'img_temperal_mask'] = predict
+        else:
+            train_df.at[index,'img_temperal_mask'] = (img_temperal_mask + predict)/2
+            
     for index, row in tqdm_notebook(test_df.iterrows(),total=len(test_df.index)):
         img_temperal_mask = row['img_temperal_mask']
         predict = predict_test[index]
@@ -341,7 +359,7 @@ def calculate_test_temperal_mask():
             test_df.at[index,'img_temperal_mask'] = predict
         else:
             test_df.at[index,'img_temperal_mask'] = (img_temperal_mask + predict)/2
-    return test_df
+    return train_df, test_df
 
 
 # # plot some augmented image
@@ -349,8 +367,8 @@ def calculate_test_temperal_mask():
 # In[7]:
 
 
-sample_train_df = train_df.sample(50)
-train_augment_df = _img_augmentation(sample_train_df)
+# sample_train_df = train_df.sample(50)
+# train_augment_df = _img_augmentation(sample_train_df)
 
 # %%time
 # sample_train_df, sample_val_df, sample_test_df = sample_df(train_df, val_df, test_df)
@@ -369,24 +387,24 @@ train_augment_df = _img_augmentation(sample_train_df)
 # In[9]:
 
 
-base_idx = 0
-max_images = 16
-grid_width = 4
-grid_height = int(max_images / grid_width)
-fig, axs = plt.subplots(grid_height, grid_width, figsize=(20, 20))
-row = 0; col = 0;
-for i, idx in enumerate(train_augment_df.index[base_idx:base_idx+int(max_images)]):
-    img = train_augment_df.loc[idx].aug_img
-    mask = train_augment_df.loc[idx].aug_img_mask
+# base_idx = 0
+# max_images = 16
+# grid_width = 4
+# grid_height = int(max_images / grid_width)
+# fig, axs = plt.subplots(grid_height, grid_width, figsize=(20, 20))
+# row = 0; col = 0;
+# for i, idx in enumerate(train_augment_df.index[base_idx:base_idx+int(max_images)]):
+#     img = train_augment_df.loc[idx].aug_img
+#     mask = train_augment_df.loc[idx].aug_img_mask
     
-    ax = axs[row, col];
-    ax.imshow(img, cmap="seismic")
-#     ax.imshow(img, cmap="gray")
-    ax.imshow(mask, alpha=0.8, cmap="Reds"); col+=1;
-    ax.set_yticklabels([]); ax.set_xticklabels([]);
+#     ax = axs[row, col];
+#     ax.imshow(img, cmap="seismic")
+# #     ax.imshow(img, cmap="gray")
+#     ax.imshow(mask, alpha=0.8, cmap="Reds"); col+=1;
+#     ax.set_yticklabels([]); ax.set_xticklabels([]);
     
-    if col >= grid_width:
-        col=0; row+=1;
+#     if col >= grid_width:
+#         col=0; row+=1;
 
 
 # # Custom loss function
@@ -420,8 +438,12 @@ def dice_loss(y_true, y_pred):
     smooth = 1.
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
+    y_true_f = _debug_func((y_true_f),"y_true_f")
+    y_pred_f = _debug_func((y_pred_f),"y_pred_f")
     intersection = y_true_f * y_pred_f
+    intersection = _debug_func((intersection),"intersection")
     score = (2. * K.sum(intersection) + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
+#     score = _debug_func((score),"score")
     return 1. - score
 
 def bce_dice_loss(y_true, y_pred):
@@ -460,53 +482,47 @@ def weighted_bce_dice_loss(y_true, y_pred):
     loss = weighted_bce_loss(y_true, y_pred, weight) + dice_loss(y_true, y_pred)
     return loss
 
-def keras_binary_crossentropy(target, output, from_logits=False):
-        # Note: tf.nn.sigmoid_cross_entropy_with_logits
-        # expects logits, Keras expects probabilities.
-        if not from_logits:
-            # transform back to logits
-            _epsilon = tensorflow_backend._to_tensor(common.epsilon(), output.dtype.base_dtype)
-            output = tf.clip_by_value(output, _epsilon, 1 - _epsilon)
-            output = tf.log(output / (1 - output))
-        
-        # this will return a tensor
-        return tf.nn.sigmoid_cross_entropy_with_logits(labels=target,
-                                                       logits=output)
-
 # MSE between current and temporal outputs
 def temperal_mse_loss(y_true, y_pred):
+    
+    def mse_loss(y_pred, y_temperal, temperal_size):
+        offset = tf.shape(y_pred)[0] - temperal_size
+        y_pred = tf.slice(y_pred, [offset,0,0,0], [-1,-1,-1,-1])
+        y_temperal = tf.slice(y_temperal, [offset,0,0,0], [-1,-1,-1,-1])
+
+        y_pred = _debug_func(y_pred,"y_pred")
+        y_temperal = _debug_func(y_temperal,"y_temperal")
+        
+        # filter out MSE if temperal = -1
+        quad_diff = K.mean((y_pred - y_temperal) ** 2)
+        quad_diff = _debug_func(quad_diff,"quad_diff")
+        
+        return quad_diff
+    
     y_temperal = tf.slice(y_true, [0, 0, 0, 1], [-1, -1, -1, 1])
-#         y_temperal = _debug_func(y_temperal,"y_temperal")
+    # y_temperal = _debug_func(y_temperal,"y_temperal")
 
     # count temperal size which has value (not -1)
-    temperal_size=tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_temperal, [1,2,3]), -1), tf.float32))
+    temperal_size=tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_temperal, [1,2,3]), -1), tf.int32))
 
-    # generate filter using y_temperal
-    temperal_filter = tf.cast(tf.not_equal(y_temperal, -1), tf.float32)
-
-    # filter out MSE if temperal = -1
-    quad_diff = K.sum(temperal_filter*((y_pred - y_temperal) ** 2))
-
-    quad_diff = quad_diff / (temperal_size*128*128+1e-15)
-
+    quad_diff = tf.cond(temperal_size > 0, lambda: mse_loss(y_pred, y_temperal, temperal_size), lambda: 0.0)
+    
     return quad_diff
 
 def masked_crossentropy(y_true, y_pred):
     y_mask = tf.slice(y_true, [0, 0, 0, 0], [-1, -1, -1, 1])
-
+#     y_mask = _debug_func((y_mask),"y_mask")
+    
     # count mask size
-    mask_size=tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_mask, [1,2,3]), -1), tf.float32))
-
-    # generate mask filter as test doesn't have mask (-1)
-    mask_filter = tf.cast(tf.not_equal(y_mask, -1), tf.float32)
-
-    bce_loss = keras_binary_crossentropy(y_mask, y_pred)
-
-    dice_loss_ = dice_loss(mask_filter*y_mask, mask_filter*y_pred)
-
-    bce_dice_loss = dice_loss_ + (K.sum(mask_filter*bce_loss) / (mask_size*128*128+1e-15))
-
-    return bce_dice_loss
+    mask_size=tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_mask, [1,2,3]), -1), tf.int32))
+    
+    # slice tensor which belong to mask_label, and mask_pred,
+    y_mask = tf.slice(y_mask, [0,0,0,0], [mask_size,-1,-1,-1])
+    y_pred = tf.slice(y_pred, [0,0,0,0], [mask_size,-1,-1,-1])
+    
+    bce_dice_loss_ = K.mean(binary_crossentropy(y_mask, y_pred)) + dice_loss(y_mask, y_pred)
+    
+    return bce_dice_loss_
 
 def mask_mean_iou(y_true, y_pred):
     y_mask = tf.slice(y_true, [0, 0, 0, 0], [-1, -1, -1, 1])
@@ -523,7 +539,8 @@ def temperal_mean_iou(y_true, y_pred):
 def temporal_loss(y_true, y_pred):
     sup_loss = masked_crossentropy(y_true, y_pred)
     unsup_loss = temperal_mse_loss(y_true, y_pred)
-    w = 0.025
+    w = 0.005
+    w = 20
     
     return sup_loss + w * unsup_loss
 
@@ -611,7 +628,8 @@ class DataGenerator(keras.utils.Sequence):
         print(f', epoch={self.epoch}')
         self.epoch += 1
         if self.epoch % self.temperal_epoch == 0 and self.training:
-            new_test_df = calculate_test_temperal_mask()
+            new_train_df, new_test_df = calculate_temperal_mask()
+            DataGenerator._train_df = new_train_df
             DataGenerator._test_df = new_test_df
 
 
@@ -663,17 +681,17 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
 
 # used for training unsuperivsed, that keep dropout
 global model_train, graph_train
-model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.8, training=True)
+model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=True)
 model_train.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_train.summary()
 graph_train = tf.get_default_graph()
 
 
-# In[13]:
+# In[ ]:
 
 
 epochs = 100
-batch_size = 64
+batch_size = 8
 callbacks = [
     EarlyStopping(patience=10, verbose=1, monitor="val_mask_mean_iou", mode="max"),
     ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),
@@ -681,8 +699,8 @@ callbacks = [
     ModelCheckpoint('weight-u-res-pi-net.h5', verbose=1, save_best_only=True, monitor="val_mask_mean_iou", mode="max", save_weights_only=True),
 ]
 
-training_generator = DataGenerator(train_df, val_df, test_df, training=True)
-validation_generator = DataGenerator(train_df, val_df, test_df, training=False)
+training_generator = DataGenerator(train_df, val_df, test_df, batch_size=batch_size, training=True)
+validation_generator = DataGenerator(train_df, val_df, test_df, batch_size=batch_size, training=False)
 
 history = model_train.fit_generator(generator=training_generator,
                     validation_data=validation_generator,
@@ -691,7 +709,7 @@ history = model_train.fit_generator(generator=training_generator,
                     workers=4)
 
 
-# In[14]:
+# In[ ]:
 
 
 fig, (ax_loss, ax_temp_loss, ax_acc, ax_iou) = plt.subplots(1,4, figsize=(15,5))
@@ -707,7 +725,7 @@ ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Vali
 
 # # Fine tune threshold
 
-# In[15]:
+# In[ ]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -722,7 +740,7 @@ y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 preds_valid = model_predict.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[16]:
+# In[ ]:
 
 
 # plot some validate result
@@ -751,7 +769,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[17]:
+# In[ ]:
 
 
 # plot some temperal mask on test results
@@ -775,7 +793,7 @@ for i, idx in enumerate(test_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[18]:
+# In[ ]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -852,7 +870,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[19]:
+# In[ ]:
 
 
 threshold_best_index = np.argmax(ious)
@@ -871,7 +889,7 @@ plt.legend()
 
 # # Predict test data
 
-# In[20]:
+# In[ ]:
 
 
 img_size_ori = 101
@@ -930,7 +948,7 @@ def RLenc(img, order='F', format=True):
         return runs
 
 
-# In[21]:
+# In[ ]:
 
 
 X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
@@ -938,7 +956,7 @@ preds_test = model_predict.predict(X_test, batch_size=32, verbose=1)
 final_preds_test = preds_test > threshold_best
 
 
-# In[22]:
+# In[ ]:
 
 
 base_idx = 160
@@ -960,7 +978,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[23]:
+# In[ ]:
 
 
 base_idx = 160
@@ -984,7 +1002,7 @@ for i in range(base_idx,base_idx+int(max_images)):
 
 # # Apply CRF
 
-# In[24]:
+# In[ ]:
 
 
 #Original_image = Image which has to labelled
@@ -1023,7 +1041,7 @@ def crf(original_image, mask_img):
     return MAP.reshape((original_image.shape[0],original_image.shape[1]))
 
 
-# In[25]:
+# In[ ]:
 
 
 """
@@ -1035,7 +1053,7 @@ for i in tqdm(range(X_test.shape[0])):
     crf_output.append(crf(np.squeeze(X_test[i]),np.squeeze(final_preds_test[i])))
 
 
-# In[26]:
+# In[ ]:
 
 
 base_idx = 160
@@ -1057,7 +1075,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[27]:
+# In[ ]:
 
 
 threshold_best=threshold_best

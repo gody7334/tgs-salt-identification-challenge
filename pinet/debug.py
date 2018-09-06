@@ -38,7 +38,7 @@ def debug_func(tf, tf_name, tf_op, tf_type, tf_device, print_tf, print_op, break
   global counter
 
   if to_file and counter % 1 ==0:
-#     np.set_printoptions(threshold=np.nan)
+    np.set_printoptions(threshold=512, precision=3)
     f = open('log.txt','a')
     pprint.pprint(name, f)
     pprint.pprint(tf_name, f)

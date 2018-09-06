@@ -221,7 +221,7 @@ def img_augment(df):
     return all_df
 #     return augment_df
 
-for i in range(2):
+for i in range(1):
     train_df = img_augment(train_df)
     val_df = img_augment(val_df)
 
@@ -261,6 +261,8 @@ y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 # In[8]:
 
 
+from debug import _debug_func
+
 # tensorflow session setting
 tf_config = tf.ConfigProto()
 tf_config.gpu_options.allow_growth = True
@@ -295,7 +297,11 @@ def dice_loss(y_true, y_pred):
     return 1. - score
 
 def bce_dice_loss(y_true, y_pred):
-    return binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
+    bce_ = binary_crossentropy(y_true, y_pred)
+    dice_ = dice_loss(y_true, y_pred)
+#     bce_ = _debug_func(bce_,"bce_")
+#     dice_ = _debug_func(dice_,"dice_")
+    return bce_ + dice_
 
 def bce_logdice_loss(y_true, y_pred):
     return binary_crossentropy(y_true, y_pred) - K.log(1. - dice_loss(y_true, y_pred))
@@ -376,7 +382,7 @@ model.summary()
 # In[10]:
 
 
-get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 32\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
+get_ipython().run_cell_magic('time', '', 'epochs = 40\nbatch_size = 64\ncallbacks = [\n    EarlyStopping(patience=10, verbose=1, monitor="val_mean_iou", mode="max"),\n    ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),\n    ModelCheckpoint(\'model-unet-resnet.h5\', verbose=1, save_best_only=True, monitor="val_mean_iou", mode="max")\n]\n\nhistory = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n                    validation_data=(X_valid, y_valid))\n\n# history = model.fit({\'img\': X_train, \'feat\': X_feat_train}, y_train, batch_size=batch_size, epochs=epochs, callbacks=callbacks,\n#                     validation_data=({\'img\': X_valid, \'feat\': X_feat_valid}, y_valid))')
 
 
 # In[11]:
@@ -394,13 +400,44 @@ ax_iou.plot(history.epoch, history.history["val_mean_iou"], label="Validation io
 # In[12]:
 
 
+import _pickle  as pickle
+def load_pickle(path):                                                                                                                                       
+    with open(path, 'rb') as f:                                                                                                                              
+        file = pickle.load(f)                                                                                                                                
+        print ('Loaded %s..' % path)                                                                                                                         
+        return file
+    
+def save_pickle(data, path):                                                                                                                                 
+    with open(path, 'wb') as f:                                                                                                                              
+        pickle.dump(data, f)                                                                                                        
+        print ('Saved %s..' % path)
+
+save_pickle({'epoch':history.epoch, 'history':history.history}, f'./history/u-rest-net_{batch_size}.history')
+
+
+# In[13]:
+
+
+h = load_pickle(f'./history/u-rest-net_{batch_size}.history')
+fig, (ax_loss, ax_acc, ax_iou) = plt.subplots(1, 3, figsize=(15,5))
+ax_loss.plot(h['epoch'], h['history']["loss"], label="Train loss")
+ax_loss.plot(h['epoch'], h['history']["val_loss"], label="Validation loss")
+ax_acc.plot(h['epoch'], h['history']["acc"], label="Train iou")
+ax_acc.plot(h['epoch'], h['history']["val_acc"], label="Validation iou")
+ax_iou.plot(h['epoch'], h['history']["mean_iou"], label="Train iou")
+ax_iou.plot(h['epoch'], h['history']["val_mean_iou"], label="Validation iou")
+
+
+# In[14]:
+
+
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
 # preds_valid = model.predict({'img': train_X, 'feat': train_d}, batch_size=32, verbose=1)
 # preds_valid = model.predict(train_X, batch_size=32, verbose=1)
 preds_valid = model.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[13]:
+# In[15]:
 
 
 base_idx = 345
@@ -428,7 +465,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[14]:
+# In[16]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -505,7 +542,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[15]:
+# In[17]:
 
 
 threshold_best_index = np.argmax(ious)
