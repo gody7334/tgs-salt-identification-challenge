@@ -300,8 +300,8 @@ def _img_augmentation(_df):
             return x
         
         x = np.fliplr(x) if flip else x
-#         x = np.squeeze(noisy(noise_type, np.expand_dims(x, axis=3)))
-#         x = sk.transform.rotate(x, degree)
+        x = np.squeeze(noisy(noise_type, np.expand_dims(x, axis=3)))
+        x = sk.transform.rotate(x, degree)
         x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
         x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)
         return x
@@ -542,7 +542,7 @@ def temporal_loss(y_true, y_pred):
     sup_loss = masked_crossentropy(y_true, y_pred)
     unsup_loss = temperal_mse_loss(y_true, y_pred)
     w = 0.005
-    w = 20*1/4
+    w = 30*1/4
     
     return sup_loss + w * unsup_loss
 
@@ -690,7 +690,7 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
 
 # used for training unsuperivsed, that keep dropout
 global model_train, graph_train
-model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=True)
+model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.8, training=True)
 model_train.compile(loss=temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_train.summary()
 graph_train = tf.get_default_graph()
@@ -1084,7 +1084,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[ ]:
+# In[27]:
 
 
 threshold_best=threshold_best
