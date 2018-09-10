@@ -3,9 +3,12 @@
 
 # ### NOW EXPERIMENTING:
 # Pinet: 
+# * try pure training dataset, should be same to normal train
+# * remove noise (seems noise effect performance a lots), ramp_up_delay=20, ramp_up_T=50, w = 100/T,  dropout = 0.5, adam lr = 0.0025
 # * change core model
 # 
 # ### Done:
+# * randomize in first batch otherwise loss seems a bit strange.
 # * add some random noice
 # * custom data generate to update test temperal mask every n epoch
 # * change unsupervise loss weight on the fly
@@ -200,8 +203,8 @@ def read_resize_img(x, scale,mask=False):
     return img_np
 
 train_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$ne":None}}]})
-test_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]})
-# test_df = sample_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]}, num_sample=1000)
+# test_df = read_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]})
+test_df = sample_mongo('dataset', 'tgs_salt', {"$and": [{"img_mask_base64":{"$eq":None}}]}, num_sample=10)
 
 # train_df = train_df.loc[:20]
 
@@ -236,7 +239,8 @@ test_df = test_df.drop('img_base64', axis=1)
 # test_df = test_df.drop('coverage_class', axis=1)
 
 train_df, val_df = train_test_split(train_df, test_size=0.1)
-train_test_df = pd.concat([train_df, test_df], axis=0, ignore_index=True, sort=False)
+# train_test_df = pd.concat([train_df, test_df], axis=0, ignore_index=True, sort=False).sample(frac=1).reset_index(drop=True)
+train_test_df = train_df.copy()
 
 
 # In[5]:
@@ -308,8 +312,8 @@ def _img_augmentation(_df, if_augment=True):
             return x
         
         x = np.fliplr(x) if flip else x
-        x = np.squeeze(noisy(noise_type, np.expand_dims(x, axis=3)))
-        x = sk.transform.rotate(x, degree)
+#         x = np.squeeze(noisy(noise_type, np.expand_dims(x, axis=3)))
+#         x = sk.transform.rotate(x, degree)
         x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
         x = resize(x,(img_size_target,img_size_target), mode='constant', preserve_range=True)
         return x
@@ -507,7 +511,7 @@ def temperal_mse_loss(y_true, y_pred):
 
     def mse_loss(y_pred, y_temperal, temperal_size):
         # generate filter using y_temperal
-        temperal_filter = tf.cast(tf.not_equal(y_temperal, -1), tf.float32)
+        temperal_filter = tf.stop_gradient(tf.cast(tf.not_equal(y_temperal, -1), tf.float32))
 
         # filter out MSE if temperal = -1
         quad_diff = K.sum((temperal_filter*y_pred - temperal_filter*y_temperal) ** 2) / (temperal_size*128*128+1e-15)
@@ -517,7 +521,7 @@ def temperal_mse_loss(y_true, y_pred):
     y_temperal = tf.slice(y_true, [0, 0, 0, 1], [-1, -1, -1, 1])
 
     # count temperal size which has value (not -1)
-    temperal_size=tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_temperal, [1,2,3]), -1), tf.float32))
+    temperal_size=tf.stop_gradient(tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_temperal, [1,2,3]), -1), tf.float32)))
 
     quad_diff = tf.cond(temperal_size > 0, lambda: mse_loss(y_pred, y_temperal, temperal_size), lambda: 0.0)
 
@@ -528,10 +532,10 @@ def masked_crossentropy(y_true, y_pred):
 #     y_mask = _debug_func((y_mask),"y_mask")
 
     # count mask size
-    mask_size=tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_mask, [1,2,3]), -1), tf.float32))
+    mask_size=tf.stop_gradient(tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_mask, [1,2,3]), -1), tf.float32)))
 
     # generate mask filter as test doesn't have mask (-1)
-    mask_filter = tf.cast(tf.not_equal(y_mask, -1), tf.float32)
+    mask_filter = tf.stop_gradient(tf.cast(tf.not_equal(y_mask, -1), tf.float32))
 
     y_mask = y_mask*mask_filter
     y_pred = y_pred*mask_filter
@@ -558,13 +562,16 @@ def temperal_mean_iou(y_true, y_pred):
 class Temperal_Callback(Callback):
     def __init__(self):
         self.ramp_up = 0
-        self.T = 40
-        self.w = 0.1
+        self.T = 50
+        self.w = 1.0 / self.T
+        self.delay = 5
         
     # customize your behavior
     def on_epoch_end(self, epoch, logs={}):
-        if epoch < self.T:
-            self.ramp_up = np.exp(-5*((1-(epoch/self.T))**2))
+        if epoch- self.delay < 0:
+            self.ramp_up = 0
+        elif epoch - self.delay < self.T:
+            self.ramp_up = np.exp(-5*((1-((epoch-self.delay)/self.T)))**2)
         else:
             self.ramp_up = 1
         logger.info("epoch %s, ramp_up = %s" % (epoch, self.ramp_up))
@@ -573,13 +580,16 @@ class Temperal_Callback(Callback):
         sup_loss = masked_crossentropy(y_true, y_pred)
         unsup_loss = temperal_mse_loss(y_true, y_pred)
 
-        batch_size = tf.to_float(tf.shape(y_pred)[0])
-        y_mask = tf.slice(y_true, [0, 0, 0, 0], [-1, -1, -1, 1])
-        mask_size=tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_mask, [1,2,3]), -1), tf.float32))
-
+        batch_size = tf.stop_gradient(tf.to_float(tf.shape(y_pred)[0]))
+        y_mask = tf.stop_gradient(tf.slice(y_true, [0, 0, 0, 0], [-1, -1, -1, 1]))
+        mask_size = tf.stop_gradient(tf.reduce_sum(tf.cast(tf.not_equal(tf.reduce_min(y_mask, [1,2,3]), -1), tf.float32)))
+        
         w = self.w * (1.0-(mask_size/batch_size)) * self.ramp_up
-
-        return sup_loss + w * unsup_loss
+#         sup_loss = _debug_func((sup_loss),"sup_loss")
+#         unsup_loss = _debug_func((unsup_loss),"unsup_loss")
+        
+        return sup_loss
+#         return sup_loss + w * unsup_loss
 
 
 # # DataGenerator
@@ -647,9 +657,9 @@ class DataGenerator(keras.utils.Sequence):
     def on_epoch_end(self):
         'Updates indexes after each epoch'
         print(f', epoch={self.epoch}')
-        if self.epoch % self.temperal_epoch == 0 and self.training:
-            new_train_test_df = calculate_temperal_mask(self.epoch)
-            DataGenerator._train_test_df = new_train_test_df
+#         if self.epoch % self.temperal_epoch == 0 and self.training and self.epoch >= 5:
+#             new_train_test_df = calculate_temperal_mask(self.epoch)
+#             DataGenerator._train_test_df = new_train_test_df
         self.epoch += 1
 
 
@@ -702,17 +712,17 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
 # used for training unsuperivsed, that keep dropout
 global model_train, graph_train
 temperal = Temperal_Callback()
-model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.8, training=True)
-model_train.compile(loss=temperal.temporal_loss, optimizer="adam", metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
+model_train = UNet((img_size_target,img_size_target,1),start_ch=16,depth=5,batchnorm=True, dropout=0.6, training=True)
+model_train.compile(loss=temperal.temporal_loss, optimizer=keras.optimizers.Adam(), metrics=[masked_crossentropy, temperal_mse_loss, mask_mean_iou, temperal_mean_iou])
 model_train.summary()
 graph_train = tf.get_default_graph()
 
 
-# In[14]:
+# In[ ]:
 
 
-epochs = 60
-batch_size = 16
+epochs = 100
+batch_size = 32
 callbacks = [
     temperal,
     EarlyStopping(patience=10, verbose=1, monitor="val_mask_mean_iou", mode="max"),
@@ -731,7 +741,7 @@ history = model_train.fit_generator(generator=training_generator,
                     workers=4)
 
 
-# In[15]:
+# In[ ]:
 
 
 fig, (ax_loss, ax_temp_loss, ax_acc, ax_iou) = plt.subplots(1,4, figsize=(15,5))
@@ -747,7 +757,7 @@ ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Vali
 
 # # Fine tune threshold
 
-# In[16]:
+# In[ ]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -763,7 +773,7 @@ y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 preds_valid = model_predict.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[17]:
+# In[ ]:
 
 
 # plot some validate result
@@ -792,7 +802,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[18]:
+# In[ ]:
 
 
 # plot some temperal mask on test results
@@ -816,7 +826,7 @@ for i, idx in enumerate(test_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[19]:
+# In[ ]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -893,7 +903,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[20]:
+# In[ ]:
 
 
 threshold_best_index = np.argmax(ious)
@@ -912,7 +922,7 @@ plt.legend()
 
 # # Predict test data
 
-# In[21]:
+# In[ ]:
 
 
 img_size_ori = 101
@@ -971,7 +981,7 @@ def RLenc(img, order='F', format=True):
         return runs
 
 
-# In[22]:
+# In[ ]:
 
 
 X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
@@ -979,7 +989,7 @@ preds_test = model_predict.predict(X_test, batch_size=32, verbose=1)
 final_preds_test = preds_test > threshold_best
 
 
-# In[23]:
+# In[ ]:
 
 
 base_idx = 160
@@ -1064,7 +1074,7 @@ def crf(original_image, mask_img):
     return MAP.reshape((original_image.shape[0],original_image.shape[1]))
 
 
-# In[26]:
+# In[ ]:
 
 
 """
@@ -1076,7 +1086,7 @@ for i in tqdm(range(X_test.shape[0])):
     crf_output.append(crf(np.squeeze(X_test[i]),np.squeeze(final_preds_test[i])))
 
 
-# In[27]:
+# In[ ]:
 
 
 base_idx = 160
@@ -1098,7 +1108,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[28]:
+# In[ ]:
 
 
 threshold_best=threshold_best
