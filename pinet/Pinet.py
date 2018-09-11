@@ -3,6 +3,7 @@
 
 # ### NOW EXPERIMENTING:
 # Pinet: 
+# * increase valid data to 0.2, close early stopping, ajust delay ramp up to epoch/2
 # * check iou_metrix function
 # * try SGD, its noiser
 # * set higher w = 1.0, ramp up delay to 50, ramp up peroid to 50, only sample 3600 test dataset
@@ -47,32 +48,32 @@
 # * inception block
 # 
 
-# In[ ]:
-
-
-iou_thresholds = np.array([0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95])
-
-def iou(img_true, img_pred):
-    i = np.sum((img_true*img_pred) >0)
-    u = np.sum((img_true + img_pred) >0)
-    if u == 0:
-        return u
-    return i/u
-
-def iou_metric(imgs_true, imgs_pred):
-    num_images = len(imgs_true)
-    scores = np.zeros(num_images)
-    
-    for i in range(num_images):
-        if imgs_true[i].sum() == imgs_pred[i].sum() == 0:
-            scores[i] = 1
-        else:
-            scores[i] = (iou_thresholds <= iou(imgs_true[i], imgs_pred[i])).mean()
-            
-    return scores.mean()
-
-
 # In[1]:
+
+
+# iou_thresholds = np.array([0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95])
+
+# def iou(img_true, img_pred):
+#     i = np.sum((img_true*img_pred) >0)
+#     u = np.sum((img_true + img_pred) >0)
+#     if u == 0:
+#         return u
+#     return i/u
+
+# def iou_metric(imgs_true, imgs_pred):
+#     num_images = len(imgs_true)
+#     scores = np.zeros(num_images)
+    
+#     for i in range(num_images):
+#         if imgs_true[i].sum() == imgs_pred[i].sum() == 0:
+#             scores[i] = 1
+#         else:
+#             scores[i] = (iou_thresholds <= iou(imgs_true[i], imgs_pred[i])).mean()
+            
+#     return scores.mean()
+
+
+# In[2]:
 
 
 import numpy as np
@@ -140,7 +141,7 @@ get_ipython().run_line_magic('load_ext', 'autoreload')
 get_ipython().run_line_magic('autoreload', '2')
 
 
-# In[2]:
+# In[3]:
 
 
 path_train = '../data/train/'
@@ -151,7 +152,7 @@ depths_df = pd.read_csv("../data/depths.csv", index_col="id")
 train_df = pd.read_csv("../data/train.csv", index_col="id")
 
 
-# In[3]:
+# In[4]:
 
 
 def _connect_mongo(host, port, username, password, db):
@@ -217,7 +218,7 @@ def sample_mongo(db, collection, query={}, host='localhost', port=27017, usernam
 
 # # Put all dataset into DF frist, hold in memory
 
-# In[4]:
+# In[5]:
 
 
 img_size_ori = 101
@@ -267,7 +268,7 @@ test_df = test_df.drop('img_base64', axis=1)
 # test_df = test_df.drop('coverage', axis=1)
 # test_df = test_df.drop('coverage_class', axis=1)
 
-train_df, val_df = train_test_split(train_df, test_size=0.1)
+train_df, val_df = train_test_split(train_df, test_size=0.2)
 
 ############# use test + train or only train data #############
 train_test_df = pd.concat([train_df, test_df], axis=0, ignore_index=True, sort=False).sample(frac=1).reset_index(drop=True)
@@ -279,7 +280,7 @@ print(test_df.shape)
 print(train_test_df.shape)
 
 
-# In[5]:
+# In[6]:
 
 
 # train_test_df.head(-1)
@@ -287,7 +288,7 @@ print(train_test_df.shape)
 
 # # Data Preprcessing function: sample, augment, to np_array
 
-# In[6]:
+# In[7]:
 
 
 def noisy(noise_typ,image):
@@ -421,7 +422,7 @@ def calculate_temperal_mask(epoch):
 
 # # plot some augmented image
 
-# In[7]:
+# In[8]:
 
 
 # sample_train_df = train_df.sample(50)
@@ -433,14 +434,14 @@ def calculate_temperal_mask(epoch):
 # X_train, y_train, X_valid, y_valid = convert_to_np_array(train_augment_df, val_augment_df, test_augment_df)
 
 
-# In[8]:
+# In[9]:
 
 
 # test_augment_df.head(1)
 # train_augment_df.head(10)
 
 
-# In[9]:
+# In[10]:
 
 
 # base_idx = 0
@@ -465,7 +466,7 @@ def calculate_temperal_mask(epoch):
 
 # # Custom loss function
 
-# In[10]:
+# In[11]:
 
 
 from debug import _debug_func
@@ -623,7 +624,7 @@ class Temperal_Callback(Callback):
 
 # # DataGenerator
 
-# In[11]:
+# In[12]:
 
 
 class DataGenerator(keras.utils.Sequence):
@@ -696,7 +697,7 @@ class DataGenerator(keras.utils.Sequence):
 
 # # Build Unet + Resnet
 
-# In[12]:
+# In[13]:
 
 
 # tensorflow session setting
@@ -738,7 +739,7 @@ def UNet(img_shape, out_ch=1, start_ch=64, depth=5, inc_rate=2., activation='rel
     return Model(inputs=i, outputs=o)
 
 
-# In[13]:
+# In[14]:
 
 
 # used for training unsuperivsed, that keep dropout
@@ -760,12 +761,12 @@ model_train.summary()
 graph_train = tf.get_default_graph()
 
 
-# In[14]:
+# In[15]:
 
 
 callbacks = [
     temperal,
-    EarlyStopping(patience=10, verbose=1, monitor="loss", mode="min"),
+#     EarlyStopping(patience=10, verbose=1, monitor="loss", mode="min"),
     ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001, verbose=1),
     ModelCheckpoint('model-u-res-pi-net.h5', verbose=1, save_best_only=True, monitor="loss", mode="min"),
     ModelCheckpoint('weight-u-res-pi-net.h5', verbose=1, save_best_only=True, monitor="loss", mode="min", save_weights_only=True),
@@ -781,7 +782,7 @@ history = model_train.fit_generator(generator=training_generator,
                     workers=4)
 
 
-# In[15]:
+# In[16]:
 
 
 fig, (ax_loss, ax_temp_loss, ax_acc, ax_iou) = plt.subplots(1,4, figsize=(15,5))
@@ -797,7 +798,7 @@ ax_iou.plot(history.epoch, history.history["val_temperal_mean_iou"], label="Vali
 
 # # Fine tune threshold
 
-# In[16]:
+# In[17]:
 
 
 # model = load_model("./model-unet-resnet.h5", custom_objects={'mean_iou':mean_iou})
@@ -813,7 +814,7 @@ y_valid = np.expand_dims(np.asarray(val_df['img_mask'].values.tolist()),axis=3)
 preds_valid = model_predict.predict(X_valid, batch_size=32, verbose=1)
 
 
-# In[17]:
+# In[18]:
 
 
 # plot some validate result
@@ -842,7 +843,7 @@ for i, idx in enumerate(val_df.index[base_idx:base_idx+int(max_images/2)]):
         col=0; row+=1;
 
 
-# In[18]:
+# In[19]:
 
 
 # plot some temperal mask on test results
@@ -866,7 +867,7 @@ for i, idx in enumerate(test_df.index[base_idx:base_idx+int(max_images)]):
         col=0; row+=1;
 
 
-# In[19]:
+# In[20]:
 
 
 # src: https://www.kaggle.com/aglotero/another-iou-metric
@@ -943,7 +944,7 @@ thresholds = np.linspace(0, 1, 20)
 ious = np.array([iou_metric_batch(y_valid, np.int32(preds_valid > threshold)) for threshold in tqdm_notebook(thresholds)])
 
 
-# In[20]:
+# In[21]:
 
 
 threshold_best_index = np.argmax(ious)
@@ -962,7 +963,7 @@ plt.legend()
 
 # # Predict test data
 
-# In[21]:
+# In[22]:
 
 
 img_size_ori = 101
@@ -1021,7 +1022,7 @@ def RLenc(img, order='F', format=True):
         return runs
 
 
-# In[22]:
+# In[23]:
 
 
 X_test = np.expand_dims(np.stack((np.asarray(test_df['img'].values.tolist()))),axis=3)
@@ -1029,7 +1030,7 @@ preds_test = model_predict.predict(X_test, batch_size=32, verbose=1)
 final_preds_test = preds_test > threshold_best
 
 
-# In[23]:
+# In[24]:
 
 
 base_idx = 160
@@ -1051,7 +1052,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[24]:
+# In[25]:
 
 
 base_idx = 160
@@ -1075,7 +1076,7 @@ for i in range(base_idx,base_idx+int(max_images)):
 
 # # Apply CRF
 
-# In[25]:
+# In[26]:
 
 
 #Original_image = Image which has to labelled
@@ -1114,7 +1115,7 @@ def crf(original_image, mask_img):
     return MAP.reshape((original_image.shape[0],original_image.shape[1]))
 
 
-# In[26]:
+# In[27]:
 
 
 """
@@ -1126,7 +1127,7 @@ for i in tqdm(range(X_test.shape[0])):
     crf_output.append(crf(np.squeeze(X_test[i]),np.squeeze(final_preds_test[i])))
 
 
-# In[27]:
+# In[28]:
 
 
 base_idx = 160
@@ -1148,7 +1149,7 @@ for i in range(base_idx,base_idx+int(max_images)):
         col=0; row+=1;
 
 
-# In[28]:
+# In[29]:
 
 
 threshold_best=threshold_best
