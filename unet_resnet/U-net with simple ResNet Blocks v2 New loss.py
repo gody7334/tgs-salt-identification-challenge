@@ -306,7 +306,7 @@ def my_iou_metric_2(label, pred):
     return tf.py_func(get_iou_vector, [label, pred >0], tf.float64)
 
 
-# In[14]:
+# In[33]:
 
 
 # code download from: https://github.com/bermanmaxim/LovaszSoftmax
@@ -396,7 +396,7 @@ def lovasz_loss(y_true, y_pred):
     return loss
 
 
-# In[15]:
+# In[34]:
 
 
 #Data augmentation
@@ -406,7 +406,7 @@ print(x_train.shape)
 print(y_valid.shape)
 
 
-# In[16]:
+# In[35]:
 
 
 # model
@@ -421,7 +421,7 @@ model1.compile(loss="binary_crossentropy", optimizer=c, metrics=[my_iou_metric])
 #model1.summary()
 
 
-# In[17]:
+# In[36]:
 
 
 #early_stopping = EarlyStopping(monitor='my_iou_metric', mode = 'max',patience=10, verbose=1)
@@ -429,7 +429,7 @@ model_checkpoint = ModelCheckpoint(save_model_name,monitor='my_iou_metric',
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='my_iou_metric', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
 
-epochs = 50
+epochs = 10
 batch_size = 32
 history = model1.fit(x_train, y_train,
                     validation_data=[x_valid, y_valid], 
@@ -439,7 +439,7 @@ history = model1.fit(x_train, y_train,
                     verbose=2)
 
 
-# In[18]:
+# In[37]:
 
 
 model1 = load_model(save_model_name,custom_objects={'my_iou_metric': my_iou_metric})
@@ -457,14 +457,14 @@ model.compile(loss=lovasz_loss, optimizer=c, metrics=[my_iou_metric_2])
 #model.summary()
 
 
-# In[19]:
+# In[ ]:
 
 
-early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
+# early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='val_my_iou_metric_2', 
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='val_my_iou_metric_2', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
-epochs = 50
+epochs = 100
 batch_size = 32
 
 history = model.fit(x_train, y_train,
@@ -475,7 +475,7 @@ history = model.fit(x_train, y_train,
                     verbose=2)
 
 
-# In[20]:
+# In[ ]:
 
 
 fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(15,5))
@@ -487,14 +487,14 @@ ax_score.plot(history.epoch, history.history["val_my_iou_metric_2"], label="Vali
 ax_score.legend()
 
 
-# In[21]:
+# In[ ]:
 
 
 model = load_model(save_model_name,custom_objects={'my_iou_metric_2': my_iou_metric_2,
                                                    'lovasz_loss': lovasz_loss})
 
 
-# In[22]:
+# In[ ]:
 
 
 def predict_result(model,x_test,img_size_target): # predict both orginal and reflect x
@@ -505,13 +505,13 @@ def predict_result(model,x_test,img_size_target): # predict both orginal and ref
     return preds_test/2
 
 
-# In[23]:
+# In[ ]:
 
 
 preds_valid = predict_result(model,x_valid,img_size_target)
 
 
-# In[24]:
+# In[ ]:
 
 
 #Score the model and do a threshold optimization by the best IoU.
@@ -590,7 +590,7 @@ def iou_metric_batch(y_true_in, y_pred_in):
     return np.mean(metric)
 
 
-# In[25]:
+# In[ ]:
 
 
 ## Scoring for last model, choose threshold by validation data 
@@ -604,7 +604,7 @@ ious = np.array([iou_metric_batch(y_valid, preds_valid > threshold) for threshol
 print(ious)
 
 
-# In[26]:
+# In[ ]:
 
 
 # instead of using default 0 as threshold, use validation data to find the best threshold.
@@ -620,7 +620,7 @@ plt.title("Threshold vs IoU ({}, {})".format(threshold_best, iou_best))
 plt.legend()
 
 
-# In[27]:
+# In[ ]:
 
 
 """
@@ -639,19 +639,19 @@ def rle_encode(im):
     return ' '.join(str(x) for x in runs)
 
 
-# In[28]:
+# In[ ]:
 
 
 x_test = np.array([(np.array(load_img("../data/test/{}.png".format(idx), grayscale = True))) / 255 for idx in tqdm_notebook(test_df.index)]).reshape(-1, img_size_target, img_size_target, 1)
 
 
-# In[29]:
+# In[ ]:
 
 
 preds_test = predict_result(model,x_test,img_size_target)
 
 
-# In[30]:
+# In[ ]:
 
 
 
@@ -662,7 +662,7 @@ t2 = time.time()
 print(f"Usedtime = {t2-t1} s")
 
 
-# In[31]:
+# In[ ]:
 
 
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')
@@ -671,7 +671,7 @@ sub.columns = ['rle_mask']
 sub.to_csv(submission_file)
 
 
-# In[32]:
+# In[ ]:
 
 
 t_finish = time.time()
