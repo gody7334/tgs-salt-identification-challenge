@@ -24,6 +24,7 @@ import os
 import sys
 import random
 
+import pydot
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -51,6 +52,11 @@ from keras.layers.merge import concatenate
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras import backend as K
 from keras import optimizers
+from keras.applications.resnet50 import ResNet50
+from keras.utils.vis_utils import plot_model
+
+from IPython.display import SVG
+from keras.utils.vis_utils import model_to_dot
 
 import tensorflow as tf
 
@@ -75,17 +81,17 @@ print(submission_file)
 # In[3]:
 
 
-img_size_ori = 101
-img_size_target = 101
+# img_size_ori = 101
+# img_size_target = 101
 
-def upsample(img):# not used
-    if img_size_ori == img_size_target:
-        return img
+def upsample(img, img_size_target):# not used
+#     if img_size_ori == img_size_target:
+#         return img
     return resize(img, (img_size_target, img_size_target), mode='constant', preserve_range=True)
     
-def downsample(img):# not used
-    if img_size_ori == img_size_target:
-        return img
+def downsample(img, img_size_ori):# not used
+#     if img_size_ori == img_size_target:
+#         return img
     return resize(img, (img_size_ori, img_size_ori), mode='constant', preserve_range=True)
 
 
@@ -116,7 +122,7 @@ train_df["masks"] = [np.array(load_img("../data/masks/{}.png".format(idx), grays
 # In[7]:
 
 
-train_df["coverage"] = train_df.masks.map(np.sum) / pow(img_size_ori, 2)
+train_df["coverage"] = train_df.masks.map(np.sum) / pow(101, 2)
 
 def cov_to_class(val):    
     for i in range(0, 11):
@@ -155,14 +161,33 @@ plt.title("Depth distribution")
 
 ids_train, ids_valid, x_train, x_valid, y_train, y_valid, cov_train, cov_test, depth_train, depth_test = train_test_split(
     train_df.index.values,
-    np.array(train_df.images.map(upsample).tolist()).reshape(-1, img_size_target, img_size_target, 1), 
-    np.array(train_df.masks.map(upsample).tolist()).reshape(-1, img_size_target, img_size_target, 1), 
+    np.stack((np.array(train_df.images.apply(lambda x: upsample(x, 256)).tolist()),)*3, -1), 
+    np.array(train_df.masks.apply(lambda x: upsample(x, 128)).tolist()).reshape(-1, 128, 128, 1), 
     train_df.coverage.values,
     train_df.z.values,
     test_size=0.2, stratify=train_df.coverage_class, random_state= 1234)
 
 
 # In[11]:
+
+
+resnet_model = ResNet50(weights = "imagenet", include_top=False, input_shape=(256,256,3))
+
+
+# In[12]:
+
+
+resnet_model.summary()
+# plot_model(resnet_model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
+
+
+# In[13]:
+
+
+SVG(model_to_dot(resnet_model, show_shapes=True, show_layer_names=True).create(prog='dot', format='svg'))
+
+
+# In[14]:
 
 
 def BatchActivate(x):
@@ -186,91 +211,151 @@ def residual_block(blockInput, num_filters=16, batch_activate = False):
     return x
 
 
-# In[12]:
+# In[17]:
 
 
-# Build model
-def build_model(input_layer, start_neurons, DropoutRatio = 0.5):
-    # 101 -> 50
-    conv1 = Conv2D(start_neurons * 1, (3, 3), activation=None, padding="same")(input_layer)
-    conv1 = residual_block(conv1,start_neurons * 1)
-    conv1 = residual_block(conv1,start_neurons * 1, True)
-    pool1 = MaxPooling2D((2, 2))(conv1)
-    pool1 = Dropout(DropoutRatio/2)(pool1)
+from keras.layers import ZeroPadding2D
 
-    # 50 -> 25
-    conv2 = Conv2D(start_neurons * 2, (3, 3), activation=None, padding="same")(pool1)
-    conv2 = residual_block(conv2,start_neurons * 2)
-    conv2 = residual_block(conv2,start_neurons * 2, True)
-    pool2 = MaxPooling2D((2, 2))(conv2)
-    pool2 = Dropout(DropoutRatio)(pool2)
+x = resnet_model.get_layer('activation_40').output
 
-    # 25 -> 12
-    conv3 = Conv2D(start_neurons * 4, (3, 3), activation=None, padding="same")(pool2)
-    conv3 = residual_block(conv3,start_neurons * 4)
-    conv3 = residual_block(conv3,start_neurons * 4, True)
-    pool3 = MaxPooling2D((2, 2))(conv3)
-    pool3 = Dropout(DropoutRatio)(pool3)
+# Middle
+convm = Conv2D(2048, (3, 3), activation=None, padding="same")(x)
+convm = residual_block(convm,2048)
+convm = residual_block(convm,2048, True)
 
-    # 12 -> 6
-    conv4 = Conv2D(start_neurons * 8, (3, 3), activation=None, padding="same")(pool3)
-    conv4 = residual_block(conv4,start_neurons * 8)
-    conv4 = residual_block(conv4,start_neurons * 8, True)
-    pool4 = MaxPooling2D((2, 2))(conv4)
-    pool4 = Dropout(DropoutRatio)(pool4)
+# 8 -> 16
+# activation_40 = resnet_model.get_layer('activation_40').output
+# deconv4 = Conv2DTranspose(2048, (3, 3), strides=(2, 2), padding="same")(convm)
+# uconv4 = concatenate([deconv4, activation_40])
+# uconv4 = Dropout(0.5)(uconv4)
 
-    # Middle
-    convm = Conv2D(start_neurons * 16, (3, 3), activation=None, padding="same")(pool4)
-    convm = residual_block(convm,start_neurons * 16)
-    convm = residual_block(convm,start_neurons * 16, True)
+# uconv4 = Conv2D(2048, (3, 3), activation=None, padding="same")(uconv4)
+# uconv4 = residual_block(uconv4,2048)
+# uconv4 = residual_block(uconv4,2048, True)
+
+# 16 -> 32
+activation_22 = resnet_model.get_layer('activation_22').output
+deconv3 = Conv2DTranspose(1024, (3, 3), strides=(2, 2), padding="same")(convm)
+uconv3 = concatenate([deconv3, activation_22])    
+uconv3 = Dropout(0.5)(uconv3)
+
+uconv3 = Conv2D(1024, (3, 3), activation=None, padding="same")(uconv3)
+uconv3 = residual_block(uconv3,1024)
+uconv3 = residual_block(uconv3,1024, True)
+
+# 32 -> 64
+activation_10 = resnet_model.get_layer('activation_10').output
+activation_10 = ZeroPadding2D(padding=((1,0),(1,0)), data_format=None)(activation_10)
+deconv2 = Conv2DTranspose(512, (3, 3), strides=(2, 2), padding="same")(uconv3)
+uconv2 = concatenate([deconv2, activation_10])
+uconv2 = Dropout(0.5)(uconv2)
+
+uconv2 = Conv2D(512, (3, 3), activation=None, padding="same")(uconv2)
+uconv2 = residual_block(uconv2,512)
+uconv2 = residual_block(uconv2,512, True)
+
+# 64 -> 128
+activation_1 = resnet_model.get_layer('activation_1').output
+deconv1 = Conv2DTranspose(256, (3, 3), strides=(2, 2), padding="same")(uconv2)
+uconv1 = concatenate([deconv1, activation_1])
+uconv1 = Dropout(0.5)(uconv1)
+
+uconv1 = Conv2D(256, (3, 3), activation=None, padding="same")(uconv1)
+uconv1 = residual_block(uconv1, 256)
+uconv1 = residual_block(uconv1, 256, True)
+
+# output shape 128*128
+#uconv1 = Dropout(DropoutRatio/2)(uconv1)
+#output_layer = Conv2D(1, (1,1), padding="same", activation="sigmoid")(uconv1)
+output_layer_noActi = Conv2D(1, (1,1), padding="same", activation=None)(uconv1)
+output_layer =  Activation('sigmoid')(output_layer_noActi)
+
+
+# In[24]:
+
+
+# # Build model
+# def build_model(input_layer, start_neurons, DropoutRatio = 0.5):
+#     # 101 -> 50
+#     conv1 = Conv2D(start_neurons * 1, (3, 3), activation=None, padding="same")(input_layer)
+#     conv1 = residual_block(conv1,start_neurons * 1)
+#     conv1 = residual_block(conv1,start_neurons * 1, True)
+#     pool1 = MaxPooling2D((2, 2))(conv1)
+#     pool1 = Dropout(DropoutRatio/2)(pool1)
+
+#     # 50 -> 25
+#     conv2 = Conv2D(start_neurons * 2, (3, 3), activation=None, padding="same")(pool1)
+#     conv2 = residual_block(conv2,start_neurons * 2)
+#     conv2 = residual_block(conv2,start_neurons * 2, True)
+#     pool2 = MaxPooling2D((2, 2))(conv2)
+#     pool2 = Dropout(DropoutRatio)(pool2)
+
+#     # 25 -> 12
+#     conv3 = Conv2D(start_neurons * 4, (3, 3), activation=None, padding="same")(pool2)
+#     conv3 = residual_block(conv3,start_neurons * 4)
+#     conv3 = residual_block(conv3,start_neurons * 4, True)
+#     pool3 = MaxPooling2D((2, 2))(conv3)
+#     pool3 = Dropout(DropoutRatio)(pool3)
+
+#     # 12 -> 6
+#     conv4 = Conv2D(start_neurons * 8, (3, 3), activation=None, padding="same")(pool3)
+#     conv4 = residual_block(conv4,start_neurons * 8)
+#     conv4 = residual_block(conv4,start_neurons * 8, True)
+#     pool4 = MaxPooling2D((2, 2))(conv4)
+#     pool4 = Dropout(DropoutRatio)(pool4)
+
+#     # Middle
+#     convm = Conv2D(start_neurons * 16, (3, 3), activation=None, padding="same")(pool4)
+#     convm = residual_block(convm,start_neurons * 16)
+#     convm = residual_block(convm,start_neurons * 16, True)
     
-    # 6 -> 12
-    deconv4 = Conv2DTranspose(start_neurons * 8, (3, 3), strides=(2, 2), padding="same")(convm)
-    uconv4 = concatenate([deconv4, conv4])
-    uconv4 = Dropout(DropoutRatio)(uconv4)
+#     # 6 -> 12
+#     deconv4 = Conv2DTranspose(start_neurons * 8, (3, 3), strides=(2, 2), padding="same")(convm)
+#     uconv4 = concatenate([deconv4, conv4])
+#     uconv4 = Dropout(DropoutRatio)(uconv4)
     
-    uconv4 = Conv2D(start_neurons * 8, (3, 3), activation=None, padding="same")(uconv4)
-    uconv4 = residual_block(uconv4,start_neurons * 8)
-    uconv4 = residual_block(uconv4,start_neurons * 8, True)
+#     uconv4 = Conv2D(start_neurons * 8, (3, 3), activation=None, padding="same")(uconv4)
+#     uconv4 = residual_block(uconv4,start_neurons * 8)
+#     uconv4 = residual_block(uconv4,start_neurons * 8, True)
     
-    # 12 -> 25
-    #deconv3 = Conv2DTranspose(start_neurons * 4, (3, 3), strides=(2, 2), padding="same")(uconv4)
-    deconv3 = Conv2DTranspose(start_neurons * 4, (3, 3), strides=(2, 2), padding="valid")(uconv4)
-    uconv3 = concatenate([deconv3, conv3])    
-    uconv3 = Dropout(DropoutRatio)(uconv3)
+#     # 12 -> 25
+#     #deconv3 = Conv2DTranspose(start_neurons * 4, (3, 3), strides=(2, 2), padding="same")(uconv4)
+#     deconv3 = Conv2DTranspose(start_neurons * 4, (3, 3), strides=(2, 2), padding="valid")(uconv4)
+#     uconv3 = concatenate([deconv3, conv3])    
+#     uconv3 = Dropout(DropoutRatio)(uconv3)
     
-    uconv3 = Conv2D(start_neurons * 4, (3, 3), activation=None, padding="same")(uconv3)
-    uconv3 = residual_block(uconv3,start_neurons * 4)
-    uconv3 = residual_block(uconv3,start_neurons * 4, True)
+#     uconv3 = Conv2D(start_neurons * 4, (3, 3), activation=None, padding="same")(uconv3)
+#     uconv3 = residual_block(uconv3,start_neurons * 4)
+#     uconv3 = residual_block(uconv3,start_neurons * 4, True)
 
-    # 25 -> 50
-    deconv2 = Conv2DTranspose(start_neurons * 2, (3, 3), strides=(2, 2), padding="same")(uconv3)
-    uconv2 = concatenate([deconv2, conv2])
-    uconv2 = Dropout(DropoutRatio)(uconv2)
+#     # 25 -> 50
+#     deconv2 = Conv2DTranspose(start_neurons * 2, (3, 3), strides=(2, 2), padding="same")(uconv3)
+#     uconv2 = concatenate([deconv2, conv2])
+#     uconv2 = Dropout(DropoutRatio)(uconv2)
         
-    uconv2 = Conv2D(start_neurons * 2, (3, 3), activation=None, padding="same")(uconv2)
-    uconv2 = residual_block(uconv2,start_neurons * 2)
-    uconv2 = residual_block(uconv2,start_neurons * 2, True)
+#     uconv2 = Conv2D(start_neurons * 2, (3, 3), activation=None, padding="same")(uconv2)
+#     uconv2 = residual_block(uconv2,start_neurons * 2)
+#     uconv2 = residual_block(uconv2,start_neurons * 2, True)
     
-    # 50 -> 101
-    #deconv1 = Conv2DTranspose(start_neurons * 1, (3, 3), strides=(2, 2), padding="same")(uconv2)
-    deconv1 = Conv2DTranspose(start_neurons * 1, (3, 3), strides=(2, 2), padding="valid")(uconv2)
-    uconv1 = concatenate([deconv1, conv1])
-    uconv1 = Dropout(DropoutRatio)(uconv1)
+#     # 50 -> 101
+#     #deconv1 = Conv2DTranspose(start_neurons * 1, (3, 3), strides=(2, 2), padding="same")(uconv2)
+#     deconv1 = Conv2DTranspose(start_neurons * 1, (3, 3), strides=(2, 2), padding="valid")(uconv2)
+#     uconv1 = concatenate([deconv1, conv1])
+#     uconv1 = Dropout(DropoutRatio)(uconv1)
     
-    uconv1 = Conv2D(start_neurons * 1, (3, 3), activation=None, padding="same")(uconv1)
-    uconv1 = residual_block(uconv1,start_neurons * 1)
-    uconv1 = residual_block(uconv1,start_neurons * 1, True)
+#     uconv1 = Conv2D(start_neurons * 1, (3, 3), activation=None, padding="same")(uconv1)
+#     uconv1 = residual_block(uconv1,start_neurons * 1)
+#     uconv1 = residual_block(uconv1,start_neurons * 1, True)
     
-    #uconv1 = Dropout(DropoutRatio/2)(uconv1)
-    #output_layer = Conv2D(1, (1,1), padding="same", activation="sigmoid")(uconv1)
-    output_layer_noActi = Conv2D(1, (1,1), padding="same", activation=None)(uconv1)
-    output_layer =  Activation('sigmoid')(output_layer_noActi)
+#     #uconv1 = Dropout(DropoutRatio/2)(uconv1)
+#     #output_layer = Conv2D(1, (1,1), padding="same", activation="sigmoid")(uconv1)
+#     output_layer_noActi = Conv2D(1, (1,1), padding="same", activation=None)(uconv1)
+#     output_layer =  Activation('sigmoid')(output_layer_noActi)
     
-    return output_layer
+#     return output_layer
 
 
-# In[13]:
+# In[18]:
 
 
 def get_iou_vector(A, B):
@@ -306,7 +391,7 @@ def my_iou_metric_2(label, pred):
     return tf.py_func(get_iou_vector, [label, pred >0], tf.float64)
 
 
-# In[14]:
+# In[19]:
 
 
 # code download from: https://github.com/bermanmaxim/LovaszSoftmax
@@ -396,32 +481,32 @@ def lovasz_loss(y_true, y_pred):
     return loss
 
 
-# In[15]:
+# In[20]:
 
 
 #Data augmentation
-x_train = np.append(x_train, [np.fliplr(x) for x in x_train], axis=0)
-y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
-print(x_train.shape)
-print(y_valid.shape)
+# x_train = np.append(x_train, [np.fliplr(x) for x in x_train], axis=0)
+# y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
+# print(x_train.shape)
+# print(y_valid.shape)
 
 
-# In[35]:
+# In[21]:
 
 
 # model
-input_layer = Input((img_size_target, img_size_target, 1))
-output_layer = build_model(input_layer, 16,0.5)
+input_layer = Input((256, 256, 3))
+# output_layer = build_model(input_layer, 16,0.5)
 
-model1 = Model(input_layer, output_layer)
+model1 = Model(resnet_model.input, output_layer)
 
 c = optimizers.adam(lr = 0.01)
 model1.compile(loss="binary_crossentropy", optimizer=c, metrics=[my_iou_metric])
 
-#model1.summary()
+model1.summary()
 
 
-# In[36]:
+# In[ ]:
 
 
 #early_stopping = EarlyStopping(monitor='my_iou_metric', mode = 'max',patience=10, verbose=1)
@@ -429,8 +514,8 @@ model_checkpoint = ModelCheckpoint(save_model_name,monitor='my_iou_metric',
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='my_iou_metric', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
 
-epochs = 10
-batch_size = 32
+epochs = 1
+batch_size = 2
 history = model1.fit(x_train, y_train,
                     validation_data=[x_valid, y_valid], 
                     epochs=epochs,

@@ -1,29 +1,9 @@
 
-# coding: utf-8
-
-# ### U-net with simple Resnet Blocks v2, can get 0.80+
-# * Original version : 
-#   https://www.kaggle.com/shaojiaxin/u-net-with-simple-resnet-blocks
-#         
-#         
-# #### update log
-# 1.   Cancel last dropout (seems better)
-# 2.  modify convolution_block, to be more consistant with the standard resent model. 
-#       * https://arxiv.org/abs/1603.05027
-# 3. Use faster  IOU metric score code,
-#       * https://www.kaggle.com/donchuk/fast-implementation-of-scoring-metric
-# 4. Use  binary_crossentropy loss and then Lovász-hinge loss (very slow!)
-#      * Lovász-hinge loss: https://github.com/bermanmaxim/LovaszSoftmax
-#      
-# Limit the max epochs number to make the kernel finish in the limit of 6 hours, better score can be achived at more epochs 
-
-# In[1]:
-
-
 import os
 import sys
 import random
 
+import pydot
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,7 +11,7 @@ plt.style.use('seaborn-white')
 import seaborn as sns
 sns.set_style("white")
 
-get_ipython().run_line_magic('matplotlib', 'inline')
+%matplotlib inline
 
 # import cv2
 from sklearn.model_selection import train_test_split
@@ -51,6 +31,11 @@ from keras.layers.merge import concatenate
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras import backend as K
 from keras import optimizers
+from keras.applications.resnet50 import ResNet50
+from keras.utils.vis_utils import plot_model
+
+from IPython.display import SVG
+from keras.utils.vis_utils import model_to_dot
 
 import tensorflow as tf
 
@@ -59,10 +44,6 @@ from keras.preprocessing.image import array_to_img, img_to_array, load_img#,save
 import time
 t_start = time.time()
 
-
-# In[2]:
-
-
 version = 5
 basic_name = f'Unet_resnet_v{version}'
 save_model_name = basic_name + '.model'
@@ -70,10 +51,6 @@ submission_file = basic_name + '.csv'
 
 print(save_model_name)
 print(submission_file)
-
-
-# In[3]:
-
 
 img_size_ori = 101
 img_size_target = 101
@@ -88,10 +65,6 @@ def downsample(img):# not used
         return img
     return resize(img, (img_size_ori, img_size_ori), mode='constant', preserve_range=True)
 
-
-# In[4]:
-
-
 # Loading of training/testing ids and depths
 train_df = pd.read_csv("../data/train.csv", index_col="id", usecols=[0])
 depths_df = pd.read_csv("../data/depths.csv", index_col="id")
@@ -100,21 +73,9 @@ test_df = depths_df[~depths_df.index.isin(train_df.index)]
 
 len(train_df)
 
-
-# In[5]:
-
-
 train_df["images"] = [np.array(load_img("../data/train/{}.png".format(idx), grayscale=True)) / 255 for idx in tqdm_notebook(train_df.index)]
 
-
-# In[6]:
-
-
 train_df["masks"] = [np.array(load_img("../data/masks/{}.png".format(idx), grayscale=True)) / 255 for idx in tqdm_notebook(train_df.index)]
-
-
-# In[7]:
-
 
 train_df["coverage"] = train_df.masks.map(np.sum) / pow(img_size_ori, 2)
 
@@ -126,9 +87,6 @@ def cov_to_class(val):
 train_df["coverage_class"] = train_df.coverage.map(cov_to_class)
 
 
-# In[8]:
-
-
 fig, axs = plt.subplots(1, 2, figsize=(15,5))
 sns.distplot(train_df.coverage, kde=False, ax=axs[0])
 sns.distplot(train_df.coverage_class, bins=10, kde=False, ax=axs[1])
@@ -136,20 +94,12 @@ plt.suptitle("Salt coverage")
 axs[0].set_xlabel("Coverage")
 axs[1].set_xlabel("Coverage class")
 
-
-# In[9]:
-
-
 #Plotting the depth distributions¶
 
 sns.distplot(train_df.z, label="Train")
 sns.distplot(test_df.z, label="Test")
 plt.legend()
 plt.title("Depth distribution")
-
-
-# In[10]:
-
 
 # Create train/validation split stratified by salt coverage
 
@@ -161,9 +111,12 @@ ids_train, ids_valid, x_train, x_valid, y_train, y_valid, cov_train, cov_test, d
     train_df.z.values,
     test_size=0.2, stratify=train_df.coverage_class, random_state= 1234)
 
+resnet_model = ResNet50(weights = "imagenet", include_top=False, input_shape=(199,199,3))
 
-# In[11]:
+resnet_model.summary()
+# plot_model(resnet_model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
 
+SVG(model_to_dot(resnet_model, show_shapes=True, show_layer_names=True).create(prog='dot', format='svg'))
 
 def BatchActivate(x):
     x = BatchNormalization()(x)
@@ -186,8 +139,36 @@ def residual_block(blockInput, num_filters=16, batch_activate = False):
     return x
 
 
-# In[12]:
+from keras.layers import ZeroPadding2D
 
+x = resnet_model.output
+
+# Middle
+convm = Conv2D(2048 * 2, (3, 3), activation=None, padding="same")(x)
+convm = residual_block(convm,2048 * 2)
+convm = residual_block(convm,2048 * 2, True)
+
+# 7 -> 14
+resnet_94 = resnet_model.get_layer('activation_94').output
+resnet_94 = ZeroPadding2D(padding=((1,0),(1,0)), data_format=None)(resnet_94)
+deconv4 = Conv2DTranspose(2048, (3, 3), strides=(2, 2), padding="same")(convm)
+uconv4 = concatenate([deconv4, resnet_94])
+uconv4 = Dropout(0.5)(uconv4)
+
+uconv4 = Conv2D(2048, (3, 3), activation=None, padding="same")(uconv4)
+uconv4 = residual_block(uconv4,2048)
+uconv4 = residual_block(uconv4,2048, True)
+
+# 14 -> 25
+resnet_76 = resnet_model.get_layer('activation_76').output
+resnet_76 = ZeroPadding2D(padding=((1,1),(1,1)), data_format=None)(resnet_76)
+deconv3 = Conv2DTranspose(1024, (3, 3), strides=(2, 2), padding="same")(uconv4)
+uconv3 = concatenate([deconv3, resnet_76])    
+uconv3 = Dropout(DropoutRatio)(uconv3)
+
+uconv3 = Conv2D(1024, (3, 3), activation=None, padding="same")(uconv3)
+uconv3 = residual_block(uconv3,1024)
+uconv3 = residual_block(uconv3,1024, True)
 
 # Build model
 def build_model(input_layer, start_neurons, DropoutRatio = 0.5):
@@ -269,10 +250,6 @@ def build_model(input_layer, start_neurons, DropoutRatio = 0.5):
     
     return output_layer
 
-
-# In[13]:
-
-
 def get_iou_vector(A, B):
     batch_size = A.shape[0]
     metric = []
@@ -304,10 +281,6 @@ def my_iou_metric(label, pred):
 
 def my_iou_metric_2(label, pred):
     return tf.py_func(get_iou_vector, [label, pred >0], tf.float64)
-
-
-# In[14]:
-
 
 # code download from: https://github.com/bermanmaxim/LovaszSoftmax
 def lovasz_grad(gt_sorted):
@@ -395,19 +368,11 @@ def lovasz_loss(y_true, y_pred):
     loss = lovasz_hinge(logits, y_true, per_image = True, ignore = None)
     return loss
 
-
-# In[15]:
-
-
 #Data augmentation
 x_train = np.append(x_train, [np.fliplr(x) for x in x_train], axis=0)
 y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
 print(x_train.shape)
 print(y_valid.shape)
-
-
-# In[35]:
-
 
 # model
 input_layer = Input((img_size_target, img_size_target, 1))
@@ -419,10 +384,6 @@ c = optimizers.adam(lr = 0.01)
 model1.compile(loss="binary_crossentropy", optimizer=c, metrics=[my_iou_metric])
 
 #model1.summary()
-
-
-# In[36]:
-
 
 #early_stopping = EarlyStopping(monitor='my_iou_metric', mode = 'max',patience=10, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='my_iou_metric', 
@@ -437,10 +398,6 @@ history = model1.fit(x_train, y_train,
                     batch_size=batch_size,
                     callbacks=[ model_checkpoint,reduce_lr], 
                     verbose=2)
-
-
-# In[19]:
-
 
 # model1 = load_model(save_model_name,custom_objects={'my_iou_metric': my_iou_metric})
 model1 = load_model(save_model_name,custom_objects={'my_iou_metric': my_iou_metric, 'lovasz_loss': lovasz_loss, 'my_iou_metric_2': my_iou_metric_2})
@@ -457,10 +414,6 @@ model.compile(loss=lovasz_loss, optimizer=c, metrics=[my_iou_metric_2])
 
 #model.summary()
 
-
-# In[38]:
-
-
 # early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='val_my_iou_metric_2', 
                                    mode = 'max', save_best_only=True, verbose=1)
@@ -475,10 +428,6 @@ history = model.fit(x_train, y_train,
                     callbacks=[ model_checkpoint,reduce_lr,early_stopping], 
                     verbose=2)
 
-
-# In[39]:
-
-
 fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(15,5))
 ax_loss.plot(history.epoch, history.history["loss"], label="Train loss")
 ax_loss.plot(history.epoch, history.history["val_loss"], label="Validation loss")
@@ -487,15 +436,9 @@ ax_score.plot(history.epoch, history.history["my_iou_metric_2"], label="Train sc
 ax_score.plot(history.epoch, history.history["val_my_iou_metric_2"], label="Validation score")
 ax_score.legend()
 
-
-# In[40]:
-
-
 model = load_model(save_model_name,custom_objects={'my_iou_metric_2': my_iou_metric_2,
                                                    'lovasz_loss': lovasz_loss})
 
-
-# In[41]:
 
 
 def predict_result(model,x_test,img_size_target): # predict both orginal and reflect x
@@ -505,15 +448,7 @@ def predict_result(model,x_test,img_size_target): # predict both orginal and ref
     preds_test += np.array([ np.fliplr(x) for x in preds_test2_refect] )
     return preds_test/2
 
-
-# In[42]:
-
-
 preds_valid = predict_result(model,x_valid,img_size_target)
-
-
-# In[43]:
-
 
 #Score the model and do a threshold optimization by the best IoU.
 
@@ -591,8 +526,6 @@ def iou_metric_batch(y_true_in, y_pred_in):
     return np.mean(metric)
 
 
-# In[44]:
-
 
 ## Scoring for last model, choose threshold by validation data 
 thresholds_ori = np.linspace(0.3, 0.7, 31)
@@ -603,10 +536,6 @@ thresholds = np.log(thresholds_ori/(1-thresholds_ori))
 # print(ious)
 ious = np.array([iou_metric_batch(y_valid, preds_valid > threshold) for threshold in tqdm_notebook(thresholds)])
 print(ious)
-
-
-# In[45]:
-
 
 # instead of using default 0 as threshold, use validation data to find the best threshold.
 threshold_best_index = np.argmax(ious) 
@@ -619,10 +548,6 @@ plt.xlabel("Threshold")
 plt.ylabel("IoU")
 plt.title("Threshold vs IoU ({}, {})".format(threshold_best, iou_best))
 plt.legend()
-
-
-# In[46]:
-
 
 """
 used for converting the decoded image to rle mask
@@ -639,21 +564,11 @@ def rle_encode(im):
     runs[1::2] -= runs[::2]
     return ' '.join(str(x) for x in runs)
 
-
-# In[47]:
-
-
 x_test = np.array([(np.array(load_img("../data/test/{}.png".format(idx), grayscale = True))) / 255 for idx in tqdm_notebook(test_df.index)]).reshape(-1, img_size_target, img_size_target, 1)
 
 
-# In[48]:
-
 
 preds_test = predict_result(model,x_test,img_size_target)
-
-
-# In[49]:
-
 
 
 t1 = time.time()
@@ -662,19 +577,10 @@ t2 = time.time()
 
 print(f"Usedtime = {t2-t1} s")
 
-
-# In[50]:
-
-
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')
 sub.index.names = ['id']
 sub.columns = ['rle_mask']
 sub.to_csv(submission_file)
 
-
-# In[51]:
-
-
 t_finish = time.time()
 print(f"Kernel run time = {(t_finish-t_start)/3600} hours")
-
