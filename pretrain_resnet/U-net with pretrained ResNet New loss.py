@@ -449,7 +449,7 @@ model1.compile(loss="binary_crossentropy", optimizer=c, metrics=[my_iou_metric])
 # #model1.summary()
 
 
-# In[ ]:
+# In[19]:
 
 
 #early_stopping = EarlyStopping(monitor='my_iou_metric', mode = 'max',patience=10, verbose=1)
@@ -467,7 +467,7 @@ history = model1.fit(x_train, y_train,
                     verbose=2)
 
 
-# In[ ]:
+# In[20]:
 
 
 model1 = load_model(save_model_name,custom_objects={'my_iou_metric': my_iou_metric})
@@ -477,7 +477,7 @@ input_x = model1.layers[0].input
 
 output_layer = model1.layers[-1].input
 model = Model(input_x, output_layer)
-c = optimizers.adam(lr = 0.01)
+c = optimizers.adam()
 
 # lovasz_loss need input range (-∞，+∞), so cancel the last "sigmoid" activation  
 # Then the default threshod for pixel prediction is 0 instead of 0.5, as in my_iou_metric_2.
@@ -486,10 +486,10 @@ model.compile(loss=lovasz_loss, optimizer=c, metrics=[my_iou_metric_2])
 #model.summary()
 
 
-# In[ ]:
+# In[21]:
 
 
-# early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
+early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='val_my_iou_metric_2', 
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='val_my_iou_metric_2', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
@@ -504,7 +504,7 @@ history = model.fit(x_train, y_train,
                     verbose=2)
 
 
-# In[ ]:
+# In[22]:
 
 
 fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(15,5))
@@ -516,14 +516,14 @@ ax_score.plot(history.epoch, history.history["val_my_iou_metric_2"], label="Vali
 ax_score.legend()
 
 
-# In[ ]:
+# In[23]:
 
 
 model = load_model(save_model_name,custom_objects={'my_iou_metric_2': my_iou_metric_2,
                                                    'lovasz_loss': lovasz_loss})
 
 
-# In[ ]:
+# In[24]:
 
 
 def predict_result(model,x_test,img_size_target): # predict both orginal and reflect x
@@ -534,13 +534,13 @@ def predict_result(model,x_test,img_size_target): # predict both orginal and ref
     return preds_test/2
 
 
-# In[ ]:
+# In[28]:
 
 
-preds_valid = predict_result(model,x_valid,img_size_target)
+preds_valid = predict_result(model,x_valid,128)
 
 
-# In[ ]:
+# In[29]:
 
 
 #Score the model and do a threshold optimization by the best IoU.
@@ -619,7 +619,7 @@ def iou_metric_batch(y_true_in, y_pred_in):
     return np.mean(metric)
 
 
-# In[ ]:
+# In[30]:
 
 
 ## Scoring for last model, choose threshold by validation data 
@@ -633,7 +633,7 @@ ious = np.array([iou_metric_batch(y_valid, preds_valid > threshold) for threshol
 print(ious)
 
 
-# In[ ]:
+# In[31]:
 
 
 # instead of using default 0 as threshold, use validation data to find the best threshold.
@@ -649,7 +649,7 @@ plt.title("Threshold vs IoU ({}, {})".format(threshold_best, iou_best))
 plt.legend()
 
 
-# In[ ]:
+# In[32]:
 
 
 """
@@ -668,7 +668,7 @@ def rle_encode(im):
     return ' '.join(str(x) for x in runs)
 
 
-# In[ ]:
+# In[33]:
 
 
 x_test = np.array([(np.array(load_img("../data/test/{}.png".format(idx), grayscale = True))) / 255 for idx in tqdm_notebook(test_df.index)]).reshape(-1, img_size_target, img_size_target, 1)
