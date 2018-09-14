@@ -64,7 +64,7 @@ import tensorflow as tf
 
 from keras.preprocessing.image import array_to_img, img_to_array, load_img#,save_img
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 import time
 t_start = time.time()
@@ -446,7 +446,7 @@ set_session(tf.Session(config=tf_config))
 from segmentation_models import Unet
 
 # prepare model
-model1 = Unet(backbone_name='resnet34', encoder_weights='imagenet')
+model1 = Unet(backbone_name='inceptionresnetv2', encoder_weights='imagenet')
 c = optimizers.adam(0.001)
 model1.compile(loss="binary_crossentropy", optimizer=c, metrics=[my_iou_metric])
 
@@ -478,7 +478,7 @@ model_checkpoint = ModelCheckpoint(save_model_name,monitor='my_iou_metric',
 reduce_lr = ReduceLROnPlateau(monitor='my_iou_metric', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
 
 epochs = 50
-batch_size = 32
+batch_size = 16
 history = model1.fit(x_train, y_train,
                     validation_data=[x_valid, y_valid], 
                     epochs=epochs,
@@ -514,7 +514,7 @@ model_checkpoint = ModelCheckpoint(save_model_name,monitor='val_my_iou_metric_2'
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='val_my_iou_metric_2', mode = 'max',factor=0.5, patience=5, min_lr=0.00001, verbose=1)
 epochs = 100
-batch_size = 32
+batch_size = 16
 
 history = model.fit(x_train, y_train,
                     validation_data=[x_valid, y_valid], 
