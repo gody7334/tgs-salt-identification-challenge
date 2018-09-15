@@ -17,7 +17,7 @@
 #      
 # Limit the max epochs number to make the kernel finish in the limit of 6 hours, better score can be achived at more epochs 
 
-# In[1]:
+# In[2]:
 
 
 import os
@@ -70,7 +70,7 @@ import time
 t_start = time.time()
 
 
-# In[2]:
+# In[4]:
 
 
 version = 5
@@ -82,7 +82,7 @@ print(save_model_name)
 print(submission_file)
 
 
-# In[3]:
+# In[5]:
 
 
 # img_size_ori = 101
@@ -99,13 +99,13 @@ def downsample(img, img_size_ori):# not used
     return resize(img, (img_size_ori, img_size_ori), mode='constant', preserve_range=True)
 
 def uppad(img):# not used
-    return np.pad(img, ((14, 13), (14, 13)), 'constant', constant_values=((0,0), (0,0)))
+    return np.pad(img, ((14, 13), (14, 13)), 'reflect')
 
 def downpad(img):# not used
     return img[14:-13, 14:-13]
 
 
-# In[4]:
+# In[13]:
 
 
 # Loading of training/testing ids and depths
@@ -295,7 +295,7 @@ def build_model(input_layer, start_neurons, DropoutRatio = 0.5):
     return output_layer
 
 
-# In[14]:
+# In[7]:
 
 
 def get_iou_vector(A, B):
@@ -331,7 +331,7 @@ def my_iou_metric_2(label, pred):
     return tf.py_func(get_iou_vector, [label, pred >0], tf.float64)
 
 
-# In[15]:
+# In[8]:
 
 
 # code download from: https://github.com/bermanmaxim/LovaszSoftmax
@@ -536,14 +536,14 @@ ax_score.plot(history.epoch, history.history["val_my_iou_metric_2"], label="Vali
 ax_score.legend()
 
 
-# In[24]:
+# In[9]:
 
 
 model = load_model(save_model_name,custom_objects={'my_iou_metric_2': my_iou_metric_2,
                                                    'lovasz_loss': lovasz_loss})
 
 
-# In[25]:
+# In[10]:
 
 
 def predict_result(model,x_test,img_size_target): # predict both orginal and reflect x
@@ -639,7 +639,14 @@ def iou_metric_batch(y_true_in, y_pred_in):
     return np.mean(metric)
 
 
-# In[28]:
+# In[43]:
+
+
+y_valid_pad = y_valid[:,14:-13, 14:-13,:]
+preds_valid_pad = preds_valid[:,14:-13, 14:-13]
+
+
+# In[41]:
 
 
 ## Scoring for last model, choose threshold by validation data 
@@ -649,11 +656,11 @@ thresholds = np.log(thresholds_ori/(1-thresholds_ori))
 
 # ious = np.array([get_iou_vector(y_valid, preds_valid > threshold) for threshold in tqdm_notebook(thresholds)])
 # print(ious)
-ious = np.array([iou_metric_batch(y_valid, preds_valid > threshold) for threshold in tqdm_notebook(thresholds)])
+ious = np.array([iou_metric_batch(y_valid_pad, preds_valid_pad > threshold) for threshold in tqdm_notebook(thresholds)])
 print(ious)
 
 
-# In[29]:
+# In[42]:
 
 
 # instead of using default 0 as threshold, use validation data to find the best threshold.
@@ -669,7 +676,7 @@ plt.title("Threshold vs IoU ({}, {})".format(threshold_best, iou_best))
 plt.legend()
 
 
-# In[30]:
+# In[11]:
 
 
 """
@@ -688,30 +695,43 @@ def rle_encode(im):
     return ' '.join(str(x) for x in runs)
 
 
-# In[31]:
+# In[16]:
 
 
-x_test = np.array([(np.array(load_img("../data/test/{}.png".format(idx), grayscale = True))) / 255 for idx in tqdm_notebook(test_df.index)]).reshape(-1, img_size_target, img_size_target, 1)
+x_test = np.array([uppad((np.array(load_img("../data/test/{}.png".format(idx), grayscale = True))) / 255) for idx in tqdm_notebook(test_df.index)])
+x_test_stack = np.stack((x_test,)*3,-1)
 
 
-# In[ ]:
+# In[17]:
 
 
-preds_test = predict_result(model,x_test,img_size_target)
+x_test_stack.shape
 
 
-# In[ ]:
+# In[18]:
 
 
+preds_test = predict_result(model,x_test_stack,128)
 
+
+# In[21]:
+
+
+preds_test = preds_test[:,14:-13, 14:-13]
+
+
+# In[23]:
+
+
+threshold_best = 0.32277339
 t1 = time.time()
-pred_dict = {idx: rle_encode(np.round(downsample(preds_test[i]) > threshold_best)) for i, idx in enumerate(tqdm_notebook(test_df.index.values))}
+pred_dict = {idx: rle_encode(np.round(preds_test[i] > threshold_best)) for i, idx in enumerate(tqdm_notebook(test_df.index.values))}
 t2 = time.time()
 
 print(f"Usedtime = {t2-t1} s")
 
 
-# In[ ]:
+# In[24]:
 
 
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')

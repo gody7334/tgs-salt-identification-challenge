@@ -99,7 +99,7 @@ def downsample(img, img_size_ori):# not used
     return resize(img, (img_size_ori, img_size_ori), mode='constant', preserve_range=True)
 
 def uppad(img):# not used
-    return np.pad(img, ((14, 13), (14, 13)), 'constant', constant_values=((0,0), (0,0)))
+    return np.pad(img, ((14, 13), (14, 13)), 'reflect')
 
 def downpad(img):# not used
     return img[14:-13, 14:-13]
@@ -688,7 +688,7 @@ def rle_encode(im):
     return ' '.join(str(x) for x in runs)
 
 
-# In[31]:
+# In[ ]:
 
 
 x_test = np.array([(np.array(load_img("../data/test/{}.png".format(idx), grayscale = True))) / 255 for idx in tqdm_notebook(test_df.index)]).reshape(-1, img_size_target, img_size_target, 1)

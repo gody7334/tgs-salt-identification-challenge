@@ -33,6 +33,8 @@ from keras import backend as K
 from keras import optimizers
 from keras.applications.resnet50 import ResNet50
 from keras.utils.vis_utils import plot_model
+from keras.backend import tensorflow_backend, common
+from keras.backend.tensorflow_backend import set_session
 
 from IPython.display import SVG
 from keras.utils.vis_utils import model_to_dot
@@ -40,6 +42,8 @@ from keras.utils.vis_utils import model_to_dot
 import tensorflow as tf
 
 from keras.preprocessing.image import array_to_img, img_to_array, load_img#,save_img
+
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 import time
 t_start = time.time()
@@ -64,6 +68,12 @@ def downsample(img, img_size_ori):# not used
 #     if img_size_ori == img_size_target:
 #         return img
     return resize(img, (img_size_ori, img_size_ori), mode='constant', preserve_range=True)
+
+def uppad(img):# not used
+    return np.pad(img, ((14, 13), (14, 13)), 'reflect')
+
+def downpad(img):# not used
+    return img[14:-13, 14:-13]
 
 # Loading of training/testing ids and depths
 train_df = pd.read_csv("../data/train.csv", index_col="id", usecols=[0])
@@ -105,8 +115,9 @@ plt.title("Depth distribution")
 
 ids_train, ids_valid, x_train, x_valid, y_train, y_valid, cov_train, cov_test, depth_train, depth_test = train_test_split(
     train_df.index.values,
-    np.stack((np.array(train_df.images.apply(lambda x: upsample(x, 128)).tolist()),)*3, -1), 
-    np.array(train_df.masks.apply(lambda x: upsample(x, 128)).tolist()).reshape(-1, 128, 128, 1), 
+#     np.stack((np.array(train_df.images.apply(lambda x: upsample(x, 101)).tolist()),)*3, -1), 
+    np.stack((np.array(train_df.images.apply(lambda x: uppad(x)).tolist()),)*3, -1), 
+    np.array(train_df.masks.apply(lambda x: uppad(x)).tolist()).reshape(-1, 128, 128, 1), 
     train_df.coverage.values,
     train_df.z.values,
     test_size=0.2, stratify=train_df.coverage_class, random_state= 1234)
@@ -340,11 +351,16 @@ y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
 print(x_train.shape)
 print(y_valid.shape)
 
+# tensorflow session setting
+tf_config = tf.ConfigProto()
+tf_config.gpu_options.allow_growth = True
+set_session(tf.Session(config=tf_config))
+
 from segmentation_models import Unet
 
 # prepare model
 model1 = Unet(backbone_name='resnet34', encoder_weights='imagenet')
-c = optimizers.adam()
+c = optimizers.adam(0.001)
 model1.compile(loss="binary_crossentropy", optimizer=c, metrics=[my_iou_metric])
 
 # model1.summary()
@@ -382,7 +398,7 @@ input_x = model1.layers[0].input
 
 output_layer = model1.layers[-1].input
 model = Model(input_x, output_layer)
-c = optimizers.adam()
+c = optimizers.adam(0.0005)
 
 # lovasz_loss need input range (-∞，+∞), so cancel the last "sigmoid" activation  
 # Then the default threshod for pixel prediction is 0 instead of 0.5, as in my_iou_metric_2.
@@ -393,7 +409,7 @@ model.compile(loss=lovasz_loss, optimizer=c, metrics=[my_iou_metric_2])
 early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='val_my_iou_metric_2', 
                                    mode = 'max', save_best_only=True, verbose=1)
-reduce_lr = ReduceLROnPlateau(monitor='val_my_iou_metric_2', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
+reduce_lr = ReduceLROnPlateau(monitor='val_my_iou_metric_2', mode = 'max',factor=0.5, patience=5, min_lr=0.00001, verbose=1)
 epochs = 100
 batch_size = 32
 
@@ -414,8 +430,6 @@ ax_score.legend()
 
 model = load_model(save_model_name,custom_objects={'my_iou_metric_2': my_iou_metric_2,
                                                    'lovasz_loss': lovasz_loss})
-
-
 
 def predict_result(model,x_test,img_size_target): # predict both orginal and reflect x
     x_test_reflect =  np.array([np.fliplr(x) for x in x_test])
@@ -503,6 +517,9 @@ def iou_metric_batch(y_true_in, y_pred_in):
 
 
 
+y_valid_pad = y_valid[:,14:-13, 14:-13,:]
+preds_valid_pad = preds_valid[:,14:-13, 14:-13]
+
 ## Scoring for last model, choose threshold by validation data 
 thresholds_ori = np.linspace(0.3, 0.7, 31)
 # Reverse sigmoid function: Use code below because the  sigmoid activation was removed
@@ -510,7 +527,7 @@ thresholds = np.log(thresholds_ori/(1-thresholds_ori))
 
 # ious = np.array([get_iou_vector(y_valid, preds_valid > threshold) for threshold in tqdm_notebook(thresholds)])
 # print(ious)
-ious = np.array([iou_metric_batch(y_valid, preds_valid > threshold) for threshold in tqdm_notebook(thresholds)])
+ious = np.array([iou_metric_batch(y_valid_pad, preds_valid_pad > threshold) for threshold in tqdm_notebook(thresholds)])
 print(ious)
 
 # instead of using default 0 as threshold, use validation data to find the best threshold.
