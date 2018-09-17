@@ -8,7 +8,7 @@ depths_df = pd.read_csv("../data/depths.csv", index_col="id")
 train_df = train_df.join(depths_df)
 test_df = depths_df[~depths_df.index.isin(train_df.index)]
 
-train_df["images"] = [np.array(load_img("../data/train/{}.png".format(idx), grayscale=True)) / 255 for idx in train_df.index]
+train_df["images"] = df.id.apply(lambda x:cv_resize(read_img(f'../data/train/{x}.png')
 train_df["masks"] = [np.array(load_img("../data/masks/{}.png".format(idx), grayscale=True)) / 255 for idx in train_df.index]
 
 train_df["coverage"] = train_df.masks.map(np.sum) / pow(101, 2)

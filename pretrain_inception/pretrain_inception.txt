@@ -1,25 +1,4 @@
 
-# coding: utf-8
-
-# ### U-net with simple Resnet Blocks v2, can get 0.80+
-# * Original version : 
-#   https://www.kaggle.com/shaojiaxin/u-net-with-simple-resnet-blocks
-#         
-#         
-# #### update log
-# 1.   Cancel last dropout (seems better)
-# 2.  modify convolution_block, to be more consistant with the standard resent model. 
-#       * https://arxiv.org/abs/1603.05027
-# 3. Use faster  IOU metric score code,
-#       * https://www.kaggle.com/donchuk/fast-implementation-of-scoring-metric
-# 4. Use  binary_crossentropy loss and then Lovász-hinge loss (very slow!)
-#      * Lovász-hinge loss: https://github.com/bermanmaxim/LovaszSoftmax
-#      
-# Limit the max epochs number to make the kernel finish in the limit of 6 hours, better score can be achived at more epochs 
-
-# In[1]:
-
-
 import os, sys, inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -27,6 +6,7 @@ sys.path.insert(0,parentdir)
 
 from func import img_process
 from func import custom_loss
+from func.DataGenerator import DataGenerator
 
 import random
 import pydot
@@ -37,10 +17,11 @@ plt.style.use('seaborn-white')
 import seaborn as sns
 sns.set_style("white")
 
-get_ipython().run_line_magic('matplotlib', 'inline')
+%matplotlib inline
 
 # import cv2
 from sklearn.model_selection import train_test_split
+from segmentation_models import Unet
 
 from tqdm import tqdm_notebook #, tnrange
 #from itertools import chain
@@ -69,29 +50,21 @@ import tensorflow as tf
 
 from keras.preprocessing.image import array_to_img, img_to_array, load_img#,save_img
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 import time
 t_start = time.time()
 
-get_ipython().run_line_magic('load_ext', 'autoreload')
-get_ipython().run_line_magic('autoreload', '2')
-
-
-# In[2]:
-
+%load_ext autoreload
+%autoreload 2
 
 version = 5
 basic_name = f'Unet_resnet_v{version}'
-save_model_name = basic_name + 'nearest.model'
+save_model_name = basic_name + '.model'
 submission_file = basic_name + '.csv'
 
 print(save_model_name)
 print(submission_file)
-
-
-# In[3]:
-
 
 # keep split same
 if(os.path.isfile('val_df.csv') is False):
@@ -104,41 +77,23 @@ else:
     val_df = pd.read_csv("./val_df.csv")
     test_df = pd.read_csv("./test_df.csv")
 
+# x_train = img_process.read_train_img_to_np_array(train_df)
+# y_train = img_process.read_mask_img_to_np_array(train_df)
+# x_valid = img_process.read_train_img_to_np_array(val_df)
+# y_valid = img_process.read_mask_img_to_np_array(val_df)
 
-# In[4]:
-
-
-x_train = img_process.read_train_img_to_np_array(train_df)
-y_train = img_process.read_mask_img_to_np_array(train_df)
-x_valid = img_process.read_train_img_to_np_array(val_df)
-y_valid = img_process.read_mask_img_to_np_array(val_df)
-
-
-# In[5]:
-
-
-#Data augmentation
-x_train = np.append(x_train, [np.fliplr(x) for x in x_train], axis=0)
-y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
-print(x_train.shape)
-print(y_train.shape)
-print(x_valid.shape)
-print(y_valid.shape)
-
-
-# In[6]:
-
+# #Data augmentation
+# x_train = np.append(x_train, [np.fliplr(x) for x in x_train], axis=0)
+# y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
+# print(x_train.shape)
+# print(y_train.shape)
+# print(x_valid.shape)
+# print(y_valid.shape)
 
 # tensorflow session setting
 tf_config = tf.ConfigProto()
 tf_config.gpu_options.allow_growth = True
 set_session(tf.Session(config=tf_config))
-
-
-# In[7]:
-
-
-from segmentation_models import Unet
 
 # prepare model
 model1 = Unet(backbone_name='inceptionresnetv2', encoder_weights='imagenet')
@@ -148,27 +103,29 @@ model1.compile(loss="binary_crossentropy", optimizer=c, metrics=[custom_loss.my_
 # model1.summary()
 # SVG(model_to_dot(model1, show_shapes=True, show_layer_names=True).create(prog='dot', format='svg'))
 
-
-# In[ ]:
-
+epochs = 50
+batch_size = 16
 
 #early_stopping = EarlyStopping(monitor='my_iou_metric', mode = 'max',patience=10, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='my_iou_metric', 
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='my_iou_metric', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
 
-epochs = 50
-batch_size = 16
-history = model1.fit(x_train, y_train,
-                    validation_data=[x_valid, y_valid], 
-                    epochs=epochs,
-                    batch_size=batch_size,
-                    callbacks=[ model_checkpoint,reduce_lr], 
-                    verbose=2)
+training_generator = DataGenerator( train_df, batch_size=batch_size)
+validation_generator = DataGenerator( val_df, batch_size=batch_size)
 
+history = model1.fit_generator(generator=training_generator,
+                    validation_data=validation_generator,
+                    epochs=epochs, callbacks=[model_checkpoint,reduce_lr],
+                    use_multiprocessing=True,
+                    workers=4)
 
-# In[10]:
-
+# history = model1.fit(x_train, y_train,
+#                     validation_data=[x_valid, y_valid], 
+#                     epochs=epochs,
+#                     batch_size=batch_size,
+#                     callbacks=[ model_checkpoint,reduce_lr], 
+#                     verbose=2)
 
 model1 = load_model(save_model_name,custom_objects={'my_iou_metric': custom_loss.my_iou_metric})
 # model1 = load_model(save_model_name,custom_objects={'my_iou_metric': my_iou_metric, 'lovasz_loss': lovasz_loss, 'my_iou_metric_2': my_iou_metric_2})
@@ -185,10 +142,6 @@ model.compile(loss=custom_loss.lovasz_loss, optimizer=c, metrics=[custom_loss.my
 
 #model.summary()
 
-
-# In[ ]:
-
-
 early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='val_my_iou_metric_2', 
                                    mode = 'max', save_best_only=True, verbose=1)
@@ -203,10 +156,6 @@ history = model.fit(x_train, y_train,
                     callbacks=[ model_checkpoint,reduce_lr,early_stopping], 
                     verbose=2)
 
-
-# In[13]:
-
-
 fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(15,5))
 ax_loss.plot(history.epoch, history.history["loss"], label="Train loss")
 ax_loss.plot(history.epoch, history.history["val_loss"], label="Validation loss")
@@ -215,16 +164,8 @@ ax_score.plot(history.epoch, history.history["my_iou_metric_2"], label="Train sc
 ax_score.plot(history.epoch, history.history["val_my_iou_metric_2"], label="Validation score")
 ax_score.legend()
 
-
-# In[9]:
-
-
 model = load_model(save_model_name,custom_objects={'my_iou_metric_2': my_iou_metric_2,
                                                    'lovasz_loss': lovasz_loss})
-
-
-# In[10]:
-
 
 def predict_result(model,x_test,img_size_target): # predict both orginal and reflect x
     x_test_reflect =  np.array([np.fliplr(x) for x in x_test])
@@ -233,15 +174,7 @@ def predict_result(model,x_test,img_size_target): # predict both orginal and ref
     preds_test += np.array([ np.fliplr(x) for x in preds_test2_refect] )
     return preds_test/2
 
-
-# In[26]:
-
-
 preds_valid = predict_result(model,x_valid,128)
-
-
-# In[27]:
-
 
 #Score the model and do a threshold optimization by the best IoU.
 
@@ -319,15 +252,9 @@ def iou_metric_batch(y_true_in, y_pred_in):
     return np.mean(metric)
 
 
-# In[43]:
-
 
 y_valid_pad = y_valid[:,14:-13, 14:-13,:]
 preds_valid_pad = preds_valid[:,14:-13, 14:-13]
-
-
-# In[41]:
-
 
 ## Scoring for last model, choose threshold by validation data 
 thresholds_ori = np.linspace(0.3, 0.7, 31)
@@ -338,10 +265,6 @@ thresholds = np.log(thresholds_ori/(1-thresholds_ori))
 # print(ious)
 ious = np.array([iou_metric_batch(y_valid_pad, preds_valid_pad > threshold) for threshold in tqdm_notebook(thresholds)])
 print(ious)
-
-
-# In[42]:
-
 
 # instead of using default 0 as threshold, use validation data to find the best threshold.
 threshold_best_index = np.argmax(ious) 
@@ -354,10 +277,6 @@ plt.xlabel("Threshold")
 plt.ylabel("IoU")
 plt.title("Threshold vs IoU ({}, {})".format(threshold_best, iou_best))
 plt.legend()
-
-
-# In[11]:
-
 
 """
 used for converting the decoded image to rle mask
@@ -374,34 +293,14 @@ def rle_encode(im):
     runs[1::2] -= runs[::2]
     return ' '.join(str(x) for x in runs)
 
-
-# In[16]:
-
-
 x_test = np.array([uppad((np.array(load_img("../data/test/{}.png".format(idx), grayscale = True))) / 255) for idx in tqdm_notebook(test_df.index)])
 x_test_stack = np.stack((x_test,)*3,-1)
 
-
-# In[17]:
-
-
 x_test_stack.shape
-
-
-# In[18]:
-
 
 preds_test = predict_result(model,x_test_stack,128)
 
-
-# In[21]:
-
-
 preds_test = preds_test[:,14:-13, 14:-13]
-
-
-# In[23]:
-
 
 threshold_best = 0.32277339
 t1 = time.time()
@@ -410,19 +309,10 @@ t2 = time.time()
 
 print(f"Usedtime = {t2-t1} s")
 
-
-# In[24]:
-
-
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')
 sub.index.names = ['id']
 sub.columns = ['rle_mask']
 sub.to_csv(submission_file)
 
-
-# In[ ]:
-
-
 t_finish = time.time()
 print(f"Kernel run time = {(t_finish-t_start)/3600} hours")
-

@@ -17,8 +17,54 @@
 #      
 # Limit the max epochs number to make the kernel finish in the limit of 6 hours, better score can be achived at more epochs 
 
-# In[1]:
+# In[ ]:
 
+
+# notebook lib
+import pydot
+from matplotlib.pyplot import savefig
+import matplotlib.pyplot as plt
+plt.style.use('seaborn-white')
+import seaborn as sns
+sns.set_style("white")
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+from tqdm import tqdm_notebook #, tnrange
+from keras.utils.vis_utils import plot_model
+from IPython.display import SVG
+from keras.utils.vis_utils import model_to_dot
+
+get_ipython().run_line_magic('load_ext', 'autoreload')
+get_ipython().run_line_magic('autoreload', '2')
+
+import time
+t_start = time.time()
+
+
+# In[ ]:
+
+
+import os, sys, inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0,parentdir)
+os.environ["CUDA_VISIBLE_DEVICES"]=device
+
+from func import img_process
+from func import custom_loss
+from func.DataGenerator import DataGenerator
+
+import pandas as pd
+import numpy as np
+
+import tensorflow as tf
+from segmentation_models import Unet
+from keras.backend import tensorflow_backend, common
+from keras.backend.tensorflow_backend import set_session
+from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from keras.models import Model, load_model, save_model
+from keras import backend as K
+from keras import optimizers
 
 import os, sys, inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -27,22 +73,17 @@ sys.path.insert(0,parentdir)
 
 from func import img_process
 from func import custom_loss
+from func.DataGenerator import DataGenerator
 
 import random
-import pydot
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-plt.style.use('seaborn-white')
-import seaborn as sns
-sns.set_style("white")
-
-get_ipython().run_line_magic('matplotlib', 'inline')
 
 # import cv2
 from sklearn.model_selection import train_test_split
+from segmentation_models import Unet
 
-from tqdm import tqdm_notebook #, tnrange
+
 #from itertools import chain
 from skimage.io import imread, imshow #, concatenate_images
 from skimage.transform import resize
@@ -58,25 +99,15 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras import backend as K
 from keras import optimizers
 from keras.applications.resnet50 import ResNet50
-from keras.utils.vis_utils import plot_model
+
 from keras.backend import tensorflow_backend, common
 from keras.backend.tensorflow_backend import set_session
-
-from IPython.display import SVG
-from keras.utils.vis_utils import model_to_dot
 
 import tensorflow as tf
 
 from keras.preprocessing.image import array_to_img, img_to_array, load_img#,save_img
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
-
-import time
-t_start = time.time()
-
-get_ipython().run_line_magic('load_ext', 'autoreload')
-get_ipython().run_line_magic('autoreload', '2')
-
 
 # In[2]:
 
@@ -108,69 +139,57 @@ else:
 # In[4]:
 
 
-x_train = img_process.read_train_img_to_np_array(train_df)
-y_train = img_process.read_mask_img_to_np_array(train_df)
-x_valid = img_process.read_train_img_to_np_array(val_df)
-y_valid = img_process.read_mask_img_to_np_array(val_df)
-
-
-# In[5]:
-
-
-#Data augmentation
-x_train = np.append(x_train, [np.fliplr(x) for x in x_train], axis=0)
-y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
-print(x_train.shape)
-print(y_train.shape)
-print(x_valid.shape)
-print(y_valid.shape)
-
-
-# In[6]:
-
-
 # tensorflow session setting
 tf_config = tf.ConfigProto()
 tf_config.gpu_options.allow_growth = True
 set_session(tf.Session(config=tf_config))
 
 
-# In[7]:
+# In[6]:
 
-
-from segmentation_models import Unet
 
 # prepare model
 model1 = Unet(backbone_name='inceptionresnetv2', encoder_weights='imagenet')
 c = optimizers.adam(0.001)
-model1.compile(loss="binary_crossentropy", optimizer=c, metrics=[custom_loss.my_iou_metric])
+model1.compile(loss= custom_loss.bce_dice_loss, optimizer=c, metrics=[custom_loss.my_iou_metric])
 
 # model1.summary()
 # SVG(model_to_dot(model1, show_shapes=True, show_layer_names=True).create(prog='dot', format='svg'))
 
 
-# In[ ]:
+# In[7]:
 
+
+epochs = 1
+batch_size = 16
 
 #early_stopping = EarlyStopping(monitor='my_iou_metric', mode = 'max',patience=10, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='my_iou_metric', 
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='my_iou_metric', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
 
-epochs = 50
-batch_size = 16
-history = model1.fit(x_train, y_train,
-                    validation_data=[x_valid, y_valid], 
-                    epochs=epochs,
-                    batch_size=batch_size,
-                    callbacks=[ model_checkpoint,reduce_lr], 
-                    verbose=2)
+training_generator = DataGenerator( train_df, batch_size=batch_size)
+validation_generator = DataGenerator( val_df, batch_size=batch_size)
+
+history = model1.fit_generator(generator=training_generator,
+                    validation_data=validation_generator,
+                    epochs=epochs, callbacks=[model_checkpoint,reduce_lr],
+                    verbose=2,      
+                    use_multiprocessing=True,
+                    workers=4)
+
+# history = model1.fit(x_train, y_train,
+#                     validation_data=[x_valid, y_valid], 
+#                     epochs=epochs,
+#                     batch_size=batch_size,
+#                     callbacks=[ model_checkpoint,reduce_lr], 
+#                     verbose=2)
 
 
-# In[13]:
+# In[9]:
 
 
-model1 = load_model(save_model_name,custom_objects={'my_iou_metric': custom_loss.my_iou_metric})
+model1 = load_model(save_model_name,custom_objects={'bce_dice_loss': custom_loss.bce_dice_loss, 'my_iou_metric': custom_loss.my_iou_metric})
 # model1 = load_model(save_model_name,custom_objects={'my_iou_metric': my_iou_metric, 'lovasz_loss': lovasz_loss, 'my_iou_metric_2': my_iou_metric_2})
 # remove layter activation layer and use losvasz loss
 input_x = model1.layers[0].input
@@ -186,25 +205,35 @@ model.compile(loss=custom_loss.lovasz_loss, optimizer=c, metrics=[custom_loss.my
 #model.summary()
 
 
-# In[14]:
+# In[10]:
 
 
 early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='val_my_iou_metric_2', 
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='val_my_iou_metric_2', mode = 'max',factor=0.5, patience=5, min_lr=0.00001, verbose=1)
-epochs = 100
+epochs = 2
 batch_size = 16
 
-history = model.fit(x_train, y_train,
-                    validation_data=[x_valid, y_valid], 
-                    epochs=epochs,
-                    batch_size=batch_size,
-                    callbacks=[ model_checkpoint,reduce_lr,early_stopping], 
-                    verbose=2)
+training_generator = DataGenerator( train_df, batch_size=batch_size)
+validation_generator = DataGenerator( val_df, batch_size=batch_size)
+
+history = model.fit_generator(generator=training_generator,
+                    validation_data=validation_generator,
+                    epochs=epochs, callbacks=[model_checkpoint,reduce_lr, early_stopping],
+                    verbose=2,      
+                    use_multiprocessing=True,
+                    workers=4)
+
+# history = model.fit(x_train, y_train,
+#                     validation_data=[x_valid, y_valid], 
+#                     epochs=epochs,
+#                     batch_size=batch_size,
+#                     callbacks=[ model_checkpoint,reduce_lr,early_stopping], 
+#                     verbose=2)
 
 
-# In[15]:
+# In[14]:
 
 
 fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(15,5))
@@ -214,6 +243,7 @@ ax_loss.legend()
 ax_score.plot(history.epoch, history.history["my_iou_metric_2"], label="Train score")
 ax_score.plot(history.epoch, history.history["val_my_iou_metric_2"], label="Validation score")
 ax_score.legend()
+savefig('loss_score.png')
 
 
 # In[9]:
