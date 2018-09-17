@@ -17,7 +17,7 @@
 #      
 # Limit the max epochs number to make the kernel finish in the limit of 6 hours, better score can be achived at more epochs 
 
-# In[ ]:
+# In[1]:
 
 
 # notebook lib
@@ -41,17 +41,18 @@ import time
 t_start = time.time()
 
 
-# In[ ]:
+# In[16]:
 
 
 import os, sys, inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir)
-os.environ["CUDA_VISIBLE_DEVICES"]=device
+os.environ["CUDA_VISIBLE_DEVICES"]='1'
 
 from func import img_process
 from func import custom_loss
+from func import post_process
 from func.DataGenerator import DataGenerator
 
 import pandas as pd
@@ -66,50 +67,8 @@ from keras.models import Model, load_model, save_model
 from keras import backend as K
 from keras import optimizers
 
-import os, sys, inspect
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0,parentdir)
 
-from func import img_process
-from func import custom_loss
-from func.DataGenerator import DataGenerator
-
-import random
-import pandas as pd
-import numpy as np
-
-# import cv2
-from sklearn.model_selection import train_test_split
-from segmentation_models import Unet
-
-
-#from itertools import chain
-from skimage.io import imread, imshow #, concatenate_images
-from skimage.transform import resize
-from skimage.morphology import label
-
-from keras.models import Model, load_model, save_model
-from keras.layers import Input,Dropout,BatchNormalization,Activation,Add
-from keras.layers.core import Lambda
-from keras.layers.convolutional import Conv2D, Conv2DTranspose
-from keras.layers.pooling import MaxPooling2D
-from keras.layers.merge import concatenate
-from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-from keras import backend as K
-from keras import optimizers
-from keras.applications.resnet50 import ResNet50
-
-from keras.backend import tensorflow_backend, common
-from keras.backend.tensorflow_backend import set_session
-
-import tensorflow as tf
-
-from keras.preprocessing.image import array_to_img, img_to_array, load_img#,save_img
-
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
-
-# In[2]:
+# In[3]:
 
 
 version = 5
@@ -121,7 +80,7 @@ print(save_model_name)
 print(submission_file)
 
 
-# In[3]:
+# In[4]:
 
 
 # keep split same
@@ -136,7 +95,7 @@ else:
     test_df = pd.read_csv("./test_df.csv")
 
 
-# In[4]:
+# In[5]:
 
 
 # tensorflow session setting
@@ -246,14 +205,21 @@ ax_score.legend()
 savefig('loss_score.png')
 
 
+# In[7]:
+
+
+model = load_model(save_model_name,custom_objects={'my_iou_metric_2': custom_loss.my_iou_metric_2,
+                                                   'lovasz_loss': custom_loss.lovasz_loss})
+
+
+# In[8]:
+
+
+x_valid = img_process.read_train_img_to_np_array(val_df)
+y_valid = img_process.read_mask_img_to_np_array(val_df)
+
+
 # In[9]:
-
-
-model = load_model(save_model_name,custom_objects={'my_iou_metric_2': my_iou_metric_2,
-                                                   'lovasz_loss': lovasz_loss})
-
-
-# In[10]:
 
 
 def predict_result(model,x_test,img_size_target): # predict both orginal and reflect x
@@ -264,99 +230,20 @@ def predict_result(model,x_test,img_size_target): # predict both orginal and ref
     return preds_test/2
 
 
-# In[26]:
+# In[10]:
 
 
 preds_valid = predict_result(model,x_valid,128)
 
 
-# In[27]:
-
-
-#Score the model and do a threshold optimization by the best IoU.
-
-# src: https://www.kaggle.com/aglotero/another-iou-metric
-def iou_metric(y_true_in, y_pred_in, print_table=False):
-    labels = y_true_in
-    y_pred = y_pred_in
-
-
-    true_objects = 2
-    pred_objects = 2
-
-    #  if all zeros, original code  generate wrong  bins [-0.5 0 0.5],
-    temp1 = np.histogram2d(labels.flatten(), y_pred.flatten(), bins=([0,0.5,1], [0,0.5, 1]))
-#     temp1 = np.histogram2d(labels.flatten(), y_pred.flatten(), bins=(true_objects, pred_objects))
-    #print(temp1)
-    intersection = temp1[0]
-    #print("temp2 = ",temp1[1])
-    #print(intersection.shape)
-   # print(intersection)
-    # Compute areas (needed for finding the union between all objects)
-    #print(np.histogram(labels, bins = true_objects))
-    area_true = np.histogram(labels,bins=[0,0.5,1])[0]
-    #print("area_true = ",area_true)
-    area_pred = np.histogram(y_pred, bins=[0,0.5,1])[0]
-    area_true = np.expand_dims(area_true, -1)
-    area_pred = np.expand_dims(area_pred, 0)
-
-    # Compute union
-    union = area_true + area_pred - intersection
-  
-    # Exclude background from the analysis
-    intersection = intersection[1:,1:]
-    intersection[intersection == 0] = 1e-9
-    
-    union = union[1:,1:]
-    union[union == 0] = 1e-9
-
-    # Compute the intersection over union
-    iou = intersection / union
-
-    # Precision helper function
-    def precision_at(threshold, iou):
-        matches = iou > threshold
-        true_positives = np.sum(matches, axis=1) == 1   # Correct objects
-        false_positives = np.sum(matches, axis=0) == 0  # Missed objects
-        false_negatives = np.sum(matches, axis=1) == 0  # Extra objects
-        tp, fp, fn = np.sum(true_positives), np.sum(false_positives), np.sum(false_negatives)
-        return tp, fp, fn
-
-    # Loop over IoU thresholds
-    prec = []
-    if print_table:
-        print("Thresh\tTP\tFP\tFN\tPrec.")
-    for t in np.arange(0.5, 1.0, 0.05):
-        tp, fp, fn = precision_at(t, iou)
-        if (tp + fp + fn) > 0:
-            p = tp / (tp + fp + fn)
-        else:
-            p = 0
-        if print_table:
-            print("{:1.3f}\t{}\t{}\t{}\t{:1.3f}".format(t, tp, fp, fn, p))
-        prec.append(p)
-    
-    if print_table:
-        print("AP\t-\t-\t-\t{:1.3f}".format(np.mean(prec)))
-    return np.mean(prec)
-
-def iou_metric_batch(y_true_in, y_pred_in):
-    batch_size = y_true_in.shape[0]
-    metric = []
-    for batch in range(batch_size):
-        value = iou_metric(y_true_in[batch], y_pred_in[batch])
-        metric.append(value)
-    return np.mean(metric)
-
-
-# In[43]:
+# In[12]:
 
 
 y_valid_pad = y_valid[:,14:-13, 14:-13,:]
 preds_valid_pad = preds_valid[:,14:-13, 14:-13]
 
 
-# In[41]:
+# In[15]:
 
 
 ## Scoring for last model, choose threshold by validation data 
@@ -366,11 +253,11 @@ thresholds = np.log(thresholds_ori/(1-thresholds_ori))
 
 # ious = np.array([get_iou_vector(y_valid, preds_valid > threshold) for threshold in tqdm_notebook(thresholds)])
 # print(ious)
-ious = np.array([iou_metric_batch(y_valid_pad, preds_valid_pad > threshold) for threshold in tqdm_notebook(thresholds)])
+ious = np.array([custom_loss.iou_metric_batch(y_valid_pad, preds_valid_pad > threshold) for threshold in tqdm_notebook(thresholds)])
 print(ious)
 
 
-# In[42]:
+# In[14]:
 
 
 # instead of using default 0 as threshold, use validation data to find the best threshold.
