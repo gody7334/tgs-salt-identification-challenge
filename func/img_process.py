@@ -6,6 +6,43 @@ from sklearn.model_selection import train_test_split
 from keras.preprocessing.image import array_to_img, img_to_array, load_img#,save_img
 from skimage.transform import resize
 
+def _img_mixup(df, sample_df, if_augment=True, target_size=128):
+    mixup_df = pd.DataFrame()
+ 
+    for i in range(df.shape[0]):
+        # np.random.seed(0)
+        alpha = 0.2
+        ratio = np.random.beta(alpha, alpha) if if_augment else 1
+#         ratio = np.random.uniform(0, 1) if if_augment else 0
+        flip1 = np.random.choice([True, False]) if if_augment else False
+        flip2 = np.random.choice([True, False]) if if_augment else False
+        
+        img1 = df.iloc[i]['img']
+        img1_mask = df.iloc[i]['img_mask']
+        img2 = sample_df.iloc[i]['img']
+        img2_mask = sample_df.iloc[i]['img_mask']
+
+        img1 = np.fliplr(img1) if flip1 else img1
+        img1_mask = np.fliplr(img1_mask) if flip1 else img1_mask
+        img2 = np.fliplr(img2) if flip2 else img2
+        img2_mask = np.fliplr(img2_mask) if flip2 else img2_mask
+            
+        mixup_img = img1*ratio + img2*(1-ratio)
+        mixup_img_mask = img1_mask*ratio + img2_mask*(1-ratio)
+        
+        mixup_img = pad_resize(mixup_img, target_size)
+        mixup_img_mask = pad_resize(mixup_img_mask, target_size)
+        
+        mixup_df = mixup_df.append(
+            {
+                'img_id': df.iloc[i]['id']+'_'+sample_df.iloc[i]['id']+'_'+str(ratio),
+                'aug_img': mixup_img,
+                'aug_img_mask': mixup_img_mask,
+            }, ignore_index=True
+        )
+
+    return mixup_df
+
 def _convert_to_np_array(_augment_df):
     X_np = np.stack((np.stack((np.asarray(_augment_df['aug_img'].values.tolist()))),)*3,-1)
     y_np = np.expand_dims(np.asarray(_augment_df['aug_img_mask'].values.tolist()),axis=3)
