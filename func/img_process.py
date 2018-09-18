@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import skimage as sk
 import cv2
 from sklearn.model_selection import train_test_split
 from keras.preprocessing.image import array_to_img, img_to_array, load_img#,save_img
@@ -38,8 +39,8 @@ def _img_augmentation(df, if_augment=True, target_size=128):
 def random_crop_resize(x, crop, flip, degree, noise_type='None', target_size=128):
     ######### noise, rotate decrease the performance a lot... ###########
 #         x = np.squeeze(noisy(noise_type, np.expand_dims(x, axis=3)))
-#         x = sk.transform.rotate(x, degree)
 
+#     x = sk.transform.rotate(x, degree, mode='reflect')
     x = np.fliplr(x) if flip else x
     x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
     x = pad_resize(x, target_size)

@@ -5,11 +5,12 @@ from func.img_process import _img_augmentation, _convert_to_np_array
 
 class DataGenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, df, batch_size=32, shuffle=True):
+    def __init__(self, df, batch_size=32, shuffle=True, augment=True):
         self.df = df
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.epoch = 0
+        self.augment = augment
 
     def __len__(self):
         'Denotes the number of batches per epoch'
@@ -25,7 +26,7 @@ class DataGenerator(keras.utils.Sequence):
         batch_df["img"] = [np.array(load_img("../data/train/{}.png".format(idx), grayscale=True)) / 255 for idx in batch_df.id]
         batch_df["img_mask"] = [np.array(load_img("../data/masks/{}.png".format(idx), grayscale=True)) / 255 for idx in batch_df.id]
         
-        augment_df = _img_augmentation(batch_df)
+        augment_df = _img_augmentation(batch_df, if_augment=self.augment)
         X_np, y_np = _convert_to_np_array(augment_df)
 
         return X_np, y_np
