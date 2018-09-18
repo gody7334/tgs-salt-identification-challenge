@@ -29,3 +29,93 @@ Epoch 00002: my_iou_metric improved from 0.33656 to 0.51925, saving model to 006
 Epoch 3/100
 , epoch=2
  - 61s - loss: 0.5457 - my_iou_metric: 0.5641 - val_loss: 0.6875 - val_my_iou_metric: 0.4198
+
+Epoch 00003: my_iou_metric improved from 0.51925 to 0.56413, saving model to 006_INCEPTION_UNET.model
+Epoch 4/100
+, epoch=3
+ - 61s - loss: 0.4891 - my_iou_metric: 0.5873 - val_loss: 0.5341 - val_my_iou_metric: 0.5606
+
+Epoch 00004: my_iou_metric improved from 0.56413 to 0.58728, saving model to 006_INCEPTION_UNET.model
+Epoch 5/100
+, epoch=4
+ - 61s - loss: 0.4389 - my_iou_metric: 0.6360 - val_loss: 0.3989 - val_my_iou_metric: 0.6895
+
+Epoch 00005: my_iou_metric improved from 0.58728 to 0.63600, saving model to 006_INCEPTION_UNET.model
+Epoch 6/100
+, epoch=5
+, epoch=1
+ - 61s - loss: 0.4094 - my_iou_metric: 0.6498 - val_loss: 0.4865 - val_my_iou_metric: 0.6836
+
+Epoch 00006: my_iou_metric improved from 0.63600 to 0.64984, saving model to 006_INCEPTION_UNET.model
+Epoch 7/100
+, epoch=6
+ - 61s - loss: 0.3853 - my_iou_metric: 0.6778 - val_loss: 0.3970 - val_my_iou_metric: 0.6852
+
+Epoch 00007: my_iou_metric improved from 0.64984 to 0.67775, saving model to 006_INCEPTION_UNET.model
+Epoch 8/100
+, epoch=7
+ - 61s - loss: 0.3738 - my_iou_metric: 0.6837 - val_loss: 0.5204 - val_my_iou_metric: 0.6068
+
+Epoch 00008: my_iou_metric improved from 0.67775 to 0.68372, saving model to 006_INCEPTION_UNET.model
+Epoch 9/100
+, epoch=8
+, epoch=2
+ - 61s - loss: 0.3483 - my_iou_metric: 0.6986 - val_loss: 0.3801 - val_my_iou_metric: 0.7080
+
+Epoch 00009: my_iou_metric improved from 0.68372 to 0.69856, saving model to 006_INCEPTION_UNET.model
+Epoch 10/100
+, epoch=9
+ - 61s - loss: 0.3363 - my_iou_metric: 0.7000 - val_loss: 0.6026 - val_my_iou_metric: 0.6438
+
+Epoch 00010: my_iou_metric improved from 0.69856 to 0.70003, saving model to 006_INCEPTION_UNET.model
+Epoch 11/100
+, epoch=10
+, epoch=3
+ - 63s - loss: 0.3207 - my_iou_metric: 0.7131 - val_loss: 0.3208 - val_my_iou_metric: 0.7236
+
+Epoch 00011: my_iou_metric improved from 0.70003 to 0.71309, saving model to 006_INCEPTION_UNET.model
+Epoch 12/100
+, epoch=11
+ - 61s - loss: 0.3015 - my_iou_metric: 0.7200 - val_loss: 0.3528 - val_my_iou_metric: 0.6846
+
+Epoch 00012: my_iou_metric improved from 0.71309 to 0.72000, saving model to 006_INCEPTION_UNET.model
+Epoch 13/100
+, epoch=12
+, epoch=4
+ - 61s - loss: 0.2885 - my_iou_metric: 0.7269 - val_loss: 0.4090 - val_my_iou_metric: 0.6827
+
+Epoch 00013: my_iou_metric improved from 0.72000 to 0.72687, saving model to 006_INCEPTION_UNET.model
+Epoch 14/100
+, epoch=13
+, epoch=5
+ - 62s - loss: 0.2913 - my_iou_metric: 0.7281 - val_loss: 0.3447 - val_my_iou_metric: 0.7226
+
+Epoch 00014: my_iou_metric improved from 0.72687 to 0.72806, saving model to 006_INCEPTION_UNET.model
+Epoch 15/100
+, epoch=14
+, epoch=6
+ - 62s - loss: 0.2592 - my_iou_metric: 0.7431 - val_loss: 0.3157 - val_my_iou_metric: 0.7429
+
+Epoch 00015: my_iou_metric improved from 0.72806 to 0.74306, saving model to 006_INCEPTION_UNET.model
+Epoch 16/100
+, epoch=15
+, epoch=7
+ - 66s - loss: 0.2456 - my_iou_metric: 0.7549 - val_loss: 0.3178 - val_my_iou_metric: 0.7386
+
+Epoch 00016: my_iou_metric improved from 0.74306 to 0.75491, saving model to 006_INCEPTION_UNET.model
+Epoch 17/100
+, epoch=16
+, epoch=8
+ - 69s - loss: 0.2451 - my_iou_metric: 0.7553 - val_loss: 0.3158 - val_my_iou_metric: 0.7336
+
+Epoch 00017: my_iou_metric improved from 0.75491 to 0.75528, saving model to 006_INCEPTION_UNET.model
+Epoch 18/100
+, epoch=17
+, epoch=9
+ - 68s - loss: 0.2333 - my_iou_metric: 0.7586 - val_loss: 0.3428 - val_my_iou_metric: 0.6907
+
+Epoch 00018: my_iou_metric improved from 0.75528 to 0.75862, saving model to 006_INCEPTION_UNET.model
+Epoch 19/100
+, epoch=18
+, epoch=10
+ - 67s - loss: 0.2243 - my_iou_metric: 0.7606 - val_loss: 0.3427 - val_my_iou_metric: 0.7305

@@ -56,7 +56,7 @@ def _img_augmentation(df, if_augment=True, target_size=128):
     augment_df = pd.DataFrame()
     for index, row in df.iterrows():
         # np.random.seed(0)
-        crop = np.random.randint(low=1, high=20, size=4) if if_augment else np.array([0, 1, 0, 1])
+        crop = np.random.randint(low=1, high=5, size=4) if if_augment else np.array([0, 1, 0, 1])
         flip = np.random.choice([True, False]) if if_augment else False
         degree = np.random.uniform(-10, 10) if if_augment else 0
 
@@ -79,7 +79,7 @@ def random_crop_resize(x, crop, flip, degree, noise_type='None', target_size=128
 
 #     x = sk.transform.rotate(x, degree, mode='reflect')
     x = np.fliplr(x) if flip else x
-#     x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
+    x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
     x = pad_resize(x, target_size)
 
     return x

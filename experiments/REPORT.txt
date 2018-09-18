@@ -1,3 +1,4 @@
+007_INCEPTION_UNET | do val augentation, flip crop[0-5], no rotation, | 
 006_INCEPTION_UNET | no val augment, only flip, no crop rotation, also log model1 |
 005_INCEPTION_UNET_MIXUP | mixup augmentation | doesn't work with lovazs loss
 004_INCEPTION_UNET | no val augmentation, ramdom crop (reflect), [0-20] | score drop to 0.75

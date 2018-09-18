@@ -5,9 +5,9 @@ augment: flip, crop, pad reflect resize
 epoch: 100 -> 200
 lr: 0.001 -> 0.0005
 
-ramdom crop (reflect), [0-20] + random rotation (reflect) [-10,10]
+do not val augentation, flip crop[0-5], no rotation,
 '''
-TAG = '003_INCEPTION_UNET'
+TAG = '007_INCEPTION_UNET'
 
 basic_name = f'{TAG}'
 save_model_name = basic_name + '.model'
@@ -16,7 +16,7 @@ submission_file = basic_name + '.csv'
 print(save_model_name)
 print(submission_file)
 
-device = '0'
+device = '1'
 first_epoch = 100
 second_epoch = 200
 batch_size = 16
@@ -85,7 +85,7 @@ model_checkpoint = ModelCheckpoint(save_model_name,monitor='my_iou_metric', mode
 reduce_lr = ReduceLROnPlateau(monitor='my_iou_metric', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
 
 training_generator = DataGenerator( train_df, batch_size=batch_size)
-validation_generator = DataGenerator( val_df, batch_size=batch_size)
+validation_generator = DataGenerator( val_df, batch_size=batch_size, augment=False)
 
 history = model1.fit_generator(generator=training_generator,
                     validation_data=validation_generator,
@@ -94,6 +94,8 @@ history = model1.fit_generator(generator=training_generator,
                     verbose=2,
                     use_multiprocessing=True,
                     workers=4)
+
+post_process.plot_history_result(history, TAG, 'model1')
 
 print('load first model')
 model2 = load_model(save_model_name,custom_objects={'bce_dice_loss': custom_loss.bce_dice_loss, 'my_iou_metric': custom_loss.my_iou_metric})
@@ -123,6 +125,6 @@ history = model2.fit_generator(generator=training_generator,
                     use_multiprocessing=True,
                     workers=4)
 
-post_process.plot_history_result(history, TAG)
+post_process.plot_history_result(history, TAG, 'model2')
 
 post_process.fine_tune_threshold(save_model_name, val_df, TAG)
