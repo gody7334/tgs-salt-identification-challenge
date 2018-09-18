@@ -1,0 +1,7 @@
+006_INCEPTION_UNET | no val augment, only flip, no crop rotation, also log model1 |
+005_INCEPTION_UNET_MIXUP | mixup augmentation | doesn't work with lovazs loss
+004_INCEPTION_UNET | no val augmentation, ramdom crop (reflect), [0-20] | score drop to 0.75
+003_INCEPTION_UNET | ramdom crop (reflect), [0-20] + random rotation (reflect) [-10,10] | score drop to 0.77
+002_INCEPTION_UNET | ramdom crop, [0-20] | score drop to 0.78
+001_INCEPTION_UNET | Setup post_process | done
+000_INCEPTION_UNET | Setup experiment pipeline, Try to reproduce the best score = 0.82 | success score = 0.82

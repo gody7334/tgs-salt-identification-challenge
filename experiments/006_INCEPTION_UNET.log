@@ -1,0 +1,31 @@
+2018-09-18 14:11:02.821387: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:898] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero
+2018-09-18 14:11:02.822162: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1356] Found device 0 with properties: 
+name: GeForce GTX 1080 major: 6 minor: 1 memoryClockRate(GHz): 1.8475
+pciBusID: 0000:01:00.0
+totalMemory: 7.93GiB freeMemory: 7.74GiB
+2018-09-18 14:11:02.822190: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1435] Adding visible gpu devices: 0
+2018-09-18 14:11:03.044753: I tensorflow/core/common_runtime/gpu/gpu_device.cc:923] Device interconnect StreamExecutor with strength 1 edge matrix:
+2018-09-18 14:11:03.044792: I tensorflow/core/common_runtime/gpu/gpu_device.cc:929]      0 
+2018-09-18 14:11:03.044809: I tensorflow/core/common_runtime/gpu/gpu_device.cc:942] 0:   N 
+2018-09-18 14:11:03.045030: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1053] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:0 with 7472 MB memory) -> physical GPU (device: 0, name: GeForce GTX 1080, pci bus id: 0000:01:00.0, compute capability: 6.1)
+006_INCEPTION_UNET.model
+006_INCEPTION_UNET.csv
+load dataset
+set tf session
+prepare model
+first training
+Epoch 1/100
+Using TensorFlow backend.
+, epoch=0
+ - 102s - loss: 0.8371 - my_iou_metric: 0.3366 - val_loss: 3.0063 - val_my_iou_metric: 0.0750
+
+Epoch 00001: my_iou_metric improved from -inf to 0.33656, saving model to 006_INCEPTION_UNET.model
+Epoch 2/100
+, epoch=1
+, epoch=0
+ - 61s - loss: 0.6136 - my_iou_metric: 0.5193 - val_loss: 0.5880 - val_my_iou_metric: 0.5925
+
+Epoch 00002: my_iou_metric improved from 0.33656 to 0.51925, saving model to 006_INCEPTION_UNET.model
+Epoch 3/100
+, epoch=2
+ - 61s - loss: 0.5457 - my_iou_metric: 0.5641 - val_loss: 0.6875 - val_my_iou_metric: 0.4198

@@ -5,11 +5,10 @@ augment: flip, crop, pad reflect resize
 epoch: 100 -> 200
 lr: 0.001 -> 0.0005
 
-get ratio from beta dist (0.2, 0.2)
-implement mixup augmentation, only with flip,(remove crop, rotation)
-do not augment val to avoid val problem...
+do not val augentation,  only flip, no crop rotation,
+check if still has performance diff between val_iou and fine tune val_iou
 '''
-TAG = '005_INCEPTION_UNET_MIXUP'
+TAG = '006_INCEPTION_UNET'
 
 basic_name = f'{TAG}'
 save_model_name = basic_name + '.model'
@@ -18,7 +17,7 @@ submission_file = basic_name + '.csv'
 print(save_model_name)
 print(submission_file)
 
-device = '1'
+device = '0'
 first_epoch = 100
 second_epoch = 200
 batch_size = 16
@@ -37,7 +36,6 @@ from func import img_process
 from func import custom_loss
 from func import post_process
 from func.DataGenerator import DataGenerator
-from func.DataGenerator import DataGenerator_mixup
 
 import pandas as pd
 import numpy as np
@@ -87,8 +85,8 @@ batch_size = batch_size
 model_checkpoint = ModelCheckpoint(save_model_name,monitor='my_iou_metric', mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='my_iou_metric', mode = 'max',factor=0.5, patience=5, min_lr=0.0001, verbose=1)
 
-training_generator = DataGenerator_mixup( train_df, batch_size=batch_size)
-validation_generator = DataGenerator_mixup( val_df, batch_size=batch_size, augment=False)
+training_generator = DataGenerator( train_df, batch_size=batch_size)
+validation_generator = DataGenerator( val_df, batch_size=batch_size, augment=False)
 
 history = model1.fit_generator(generator=training_generator,
                     validation_data=validation_generator,

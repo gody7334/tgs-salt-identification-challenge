@@ -10,7 +10,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import savefig
 
-def plot_history_result(history, TAG):
+def plot_history_result(history, TAG, name):
     #plot result
    
     fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(15,5))
@@ -20,7 +20,7 @@ def plot_history_result(history, TAG):
     ax_score.plot(history.epoch, history.history["my_iou_metric_2"], label="Train score")
     ax_score.plot(history.epoch, history.history["val_my_iou_metric_2"], label="Validation score")
     ax_score.legend()
-    savefig(f'{TAG}_loss_score.png')
+    savefig(f'{TAG}_loss_score_{name}.png')
     matplotlib.pyplot.clf()
 
     result = {'loss': history.history["loss"],
@@ -29,7 +29,7 @@ def plot_history_result(history, TAG):
               'val_my_iou_metric_2': history.history["val_my_iou_metric_2"],
              }
     df_result = pd.DataFrame.from_dict(result)
-    df_result.to_csv(f'{TAG}_result.csv')
+    df_result.to_csv(f'{TAG}_result_{name}.csv')
     # fine tune threshold
 
 def fine_tune_threshold(save_model_name, val_df, TAG):

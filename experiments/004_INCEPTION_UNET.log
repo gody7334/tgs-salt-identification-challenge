@@ -689,3 +689,300 @@ Epoch 15/200
 Epoch 00015: val_my_iou_metric_2 did not improve from 0.78700
 Epoch 16/200
 , epoch=115
+, epoch=89
+ - 114s - loss: 0.2735 - my_iou_metric_2: 0.8369 - val_loss: 0.3780 - val_my_iou_metric_2: 0.7840
+
+Epoch 00016: val_my_iou_metric_2 did not improve from 0.78700
+Epoch 17/200
+, epoch=116
+, epoch=90
+ - 111s - loss: 0.2568 - my_iou_metric_2: 0.8453 - val_loss: 0.3849 - val_my_iou_metric_2: 0.7871
+
+Epoch 00017: val_my_iou_metric_2 improved from 0.78700 to 0.78712, saving model to 004_INCEPTION_UNET.model
+Epoch 18/200
+, epoch=117
+, epoch=91
+ - 115s - loss: 0.2648 - my_iou_metric_2: 0.8420 - val_loss: 0.3967 - val_my_iou_metric_2: 0.7807
+
+Epoch 00018: val_my_iou_metric_2 did not improve from 0.78712
+Epoch 19/200
+, epoch=118
+, epoch=92
+ - 116s - loss: 0.2629 - my_iou_metric_2: 0.8437 - val_loss: 0.3925 - val_my_iou_metric_2: 0.7805
+
+Epoch 00019: val_my_iou_metric_2 did not improve from 0.78712
+Epoch 20/200
+, epoch=119
+, epoch=93
+ - 115s - loss: 0.2552 - my_iou_metric_2: 0.8502 - val_loss: 0.3881 - val_my_iou_metric_2: 0.7877
+
+Epoch 00020: val_my_iou_metric_2 improved from 0.78712 to 0.78775, saving model to 004_INCEPTION_UNET.model
+Epoch 21/200
+, epoch=120
+, epoch=94
+ - 114s - loss: 0.2531 - my_iou_metric_2: 0.8492 - val_loss: 0.4029 - val_my_iou_metric_2: 0.7751
+
+Epoch 00021: val_my_iou_metric_2 did not improve from 0.78775
+Epoch 22/200
+, epoch=121
+, epoch=95
+ - 115s - loss: 0.2504 - my_iou_metric_2: 0.8475 - val_loss: 0.3812 - val_my_iou_metric_2: 0.7905
+
+Epoch 00022: val_my_iou_metric_2 improved from 0.78775 to 0.79050, saving model to 004_INCEPTION_UNET.model
+Epoch 23/200
+, epoch=122
+, epoch=96
+ - 115s - loss: 0.2491 - my_iou_metric_2: 0.8495 - val_loss: 0.3809 - val_my_iou_metric_2: 0.7889
+
+Epoch 00023: val_my_iou_metric_2 did not improve from 0.79050
+Epoch 24/200
+, epoch=123
+, epoch=97
+ - 116s - loss: 0.2448 - my_iou_metric_2: 0.8522 - val_loss: 0.3998 - val_my_iou_metric_2: 0.7816
+
+Epoch 00024: val_my_iou_metric_2 did not improve from 0.79050
+Epoch 25/200
+, epoch=124
+, epoch=98
+ - 115s - loss: 0.2364 - my_iou_metric_2: 0.8561 - val_loss: 0.3807 - val_my_iou_metric_2: 0.7917
+
+Epoch 00025: val_my_iou_metric_2 improved from 0.79050 to 0.79175, saving model to 004_INCEPTION_UNET.model
+Epoch 26/200
+, epoch=125
+, epoch=99
+ - 115s - loss: 0.2381 - my_iou_metric_2: 0.8563 - val_loss: 0.3957 - val_my_iou_metric_2: 0.7855
+
+Epoch 00026: val_my_iou_metric_2 did not improve from 0.79175
+Epoch 27/200
+, epoch=126
+, epoch=100
+ - 115s - loss: 0.2391 - my_iou_metric_2: 0.8555 - val_loss: 0.4038 - val_my_iou_metric_2: 0.7775
+
+Epoch 00027: val_my_iou_metric_2 did not improve from 0.79175
+Epoch 28/200
+, epoch=127
+, epoch=101
+ - 115s - loss: 0.2295 - my_iou_metric_2: 0.8595 - val_loss: 0.4063 - val_my_iou_metric_2: 0.7811
+
+Epoch 00028: val_my_iou_metric_2 did not improve from 0.79175
+Epoch 29/200
+, epoch=128
+, epoch=102
+ - 116s - loss: 0.2345 - my_iou_metric_2: 0.8575 - val_loss: 0.4080 - val_my_iou_metric_2: 0.7827
+
+Epoch 00029: val_my_iou_metric_2 did not improve from 0.79175
+Epoch 30/200
+, epoch=129
+, epoch=103
+ - 116s - loss: 0.2254 - my_iou_metric_2: 0.8629 - val_loss: 0.3804 - val_my_iou_metric_2: 0.7911
+
+Epoch 00030: val_my_iou_metric_2 did not improve from 0.79175
+
+Epoch 00030: ReduceLROnPlateau reducing learning rate to 0.0001250000059371814.
+Epoch 31/200
+, epoch=130
+, epoch=104
+ - 115s - loss: 0.2382 - my_iou_metric_2: 0.8545 - val_loss: 0.3720 - val_my_iou_metric_2: 0.7895
+
+Epoch 00031: val_my_iou_metric_2 did not improve from 0.79175
+Epoch 32/200
+, epoch=131
+, epoch=105
+ - 116s - loss: 0.2278 - my_iou_metric_2: 0.8618 - val_loss: 0.3697 - val_my_iou_metric_2: 0.7936
+
+Epoch 00032: val_my_iou_metric_2 improved from 0.79175 to 0.79362, saving model to 004_INCEPTION_UNET.model
+Epoch 33/200
+, epoch=132
+, epoch=106
+ - 116s - loss: 0.2348 - my_iou_metric_2: 0.8568 - val_loss: 0.3840 - val_my_iou_metric_2: 0.7860
+
+Epoch 00033: val_my_iou_metric_2 did not improve from 0.79362
+Epoch 34/200
+, epoch=133
+, epoch=107
+ - 116s - loss: 0.2335 - my_iou_metric_2: 0.8601 - val_loss: 0.3810 - val_my_iou_metric_2: 0.7865
+
+Epoch 00034: val_my_iou_metric_2 did not improve from 0.79362
+Epoch 35/200
+, epoch=134
+, epoch=108
+ - 116s - loss: 0.2286 - my_iou_metric_2: 0.8600 - val_loss: 0.3759 - val_my_iou_metric_2: 0.7876
+
+Epoch 00035: val_my_iou_metric_2 did not improve from 0.79362
+Epoch 36/200
+, epoch=135
+, epoch=109
+ - 115s - loss: 0.2268 - my_iou_metric_2: 0.8627 - val_loss: 0.3667 - val_my_iou_metric_2: 0.7921
+
+Epoch 00036: val_my_iou_metric_2 did not improve from 0.79362
+Epoch 37/200
+, epoch=136
+, epoch=110
+ - 115s - loss: 0.2365 - my_iou_metric_2: 0.8563 - val_loss: 0.3553 - val_my_iou_metric_2: 0.7996
+
+Epoch 00037: val_my_iou_metric_2 improved from 0.79362 to 0.79963, saving model to 004_INCEPTION_UNET.model
+Epoch 38/200
+, epoch=137
+, epoch=111
+ - 116s - loss: 0.2167 - my_iou_metric_2: 0.8683 - val_loss: 0.3518 - val_my_iou_metric_2: 0.8001
+
+Epoch 00038: val_my_iou_metric_2 improved from 0.79963 to 0.80012, saving model to 004_INCEPTION_UNET.model
+Epoch 39/200
+, epoch=138
+, epoch=112
+ - 116s - loss: 0.2194 - my_iou_metric_2: 0.8658 - val_loss: 0.3713 - val_my_iou_metric_2: 0.7902
+
+Epoch 00039: val_my_iou_metric_2 did not improve from 0.80012
+Epoch 40/200
+, epoch=139
+, epoch=113
+ - 118s - loss: 0.2106 - my_iou_metric_2: 0.8712 - val_loss: 0.3628 - val_my_iou_metric_2: 0.7947
+
+Epoch 00040: val_my_iou_metric_2 did not improve from 0.80012
+Epoch 41/200
+, epoch=140
+, epoch=114
+ - 121s - loss: 0.2082 - my_iou_metric_2: 0.8710 - val_loss: 0.3615 - val_my_iou_metric_2: 0.7951
+
+Epoch 00041: val_my_iou_metric_2 did not improve from 0.80012
+Epoch 42/200
+, epoch=141
+, epoch=115
+ - 116s - loss: 0.2244 - my_iou_metric_2: 0.8619 - val_loss: 0.3459 - val_my_iou_metric_2: 0.8067
+
+Epoch 00042: val_my_iou_metric_2 improved from 0.80012 to 0.80675, saving model to 004_INCEPTION_UNET.model
+Epoch 43/200
+, epoch=142
+, epoch=116
+ - 116s - loss: 0.2214 - my_iou_metric_2: 0.8644 - val_loss: 0.3547 - val_my_iou_metric_2: 0.7996
+
+Epoch 00043: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 44/200
+, epoch=143
+, epoch=117
+ - 117s - loss: 0.2127 - my_iou_metric_2: 0.8676 - val_loss: 0.3467 - val_my_iou_metric_2: 0.8012
+
+Epoch 00044: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 45/200
+, epoch=144
+, epoch=118
+ - 115s - loss: 0.2073 - my_iou_metric_2: 0.8735 - val_loss: 0.3567 - val_my_iou_metric_2: 0.7973
+
+Epoch 00045: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 46/200
+, epoch=145
+, epoch=119
+ - 116s - loss: 0.2166 - my_iou_metric_2: 0.8668 - val_loss: 0.3654 - val_my_iou_metric_2: 0.7941
+
+Epoch 00046: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 47/200
+, epoch=146
+, epoch=120
+ - 116s - loss: 0.2127 - my_iou_metric_2: 0.8696 - val_loss: 0.3655 - val_my_iou_metric_2: 0.7934
+
+Epoch 00047: val_my_iou_metric_2 did not improve from 0.80675
+
+Epoch 00047: ReduceLROnPlateau reducing learning rate to 6.25000029685907e-05.
+Epoch 48/200
+, epoch=147
+, epoch=121
+ - 116s - loss: 0.1953 - my_iou_metric_2: 0.8785 - val_loss: 0.3642 - val_my_iou_metric_2: 0.7944
+
+Epoch 00048: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 49/200
+, epoch=148
+, epoch=122
+ - 115s - loss: 0.2000 - my_iou_metric_2: 0.8743 - val_loss: 0.3662 - val_my_iou_metric_2: 0.7922
+
+Epoch 00049: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 50/200
+, epoch=149
+, epoch=123
+ - 116s - loss: 0.2082 - my_iou_metric_2: 0.8720 - val_loss: 0.3640 - val_my_iou_metric_2: 0.7949
+
+Epoch 00050: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 51/200
+, epoch=150
+, epoch=124
+ - 116s - loss: 0.2127 - my_iou_metric_2: 0.8680 - val_loss: 0.3666 - val_my_iou_metric_2: 0.7921
+
+Epoch 00051: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 52/200
+, epoch=151
+, epoch=125
+ - 116s - loss: 0.2066 - my_iou_metric_2: 0.8723 - val_loss: 0.3708 - val_my_iou_metric_2: 0.7902
+
+Epoch 00052: val_my_iou_metric_2 did not improve from 0.80675
+
+Epoch 00052: ReduceLROnPlateau reducing learning rate to 3.125000148429535e-05.
+Epoch 53/200
+, epoch=152
+, epoch=126
+ - 116s - loss: 0.2075 - my_iou_metric_2: 0.8728 - val_loss: 0.3643 - val_my_iou_metric_2: 0.7950
+
+Epoch 00053: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 54/200
+, epoch=153
+, epoch=127
+ - 116s - loss: 0.2027 - my_iou_metric_2: 0.8765 - val_loss: 0.3668 - val_my_iou_metric_2: 0.7941
+
+Epoch 00054: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 55/200
+, epoch=154
+, epoch=128
+ - 117s - loss: 0.2058 - my_iou_metric_2: 0.8713 - val_loss: 0.3571 - val_my_iou_metric_2: 0.7980
+
+Epoch 00055: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 56/200
+, epoch=155
+, epoch=129
+ - 117s - loss: 0.2040 - my_iou_metric_2: 0.8741 - val_loss: 0.3545 - val_my_iou_metric_2: 0.7978
+
+Epoch 00056: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 57/200
+, epoch=156
+, epoch=130
+ - 116s - loss: 0.2033 - my_iou_metric_2: 0.8737 - val_loss: 0.3527 - val_my_iou_metric_2: 0.8008
+
+Epoch 00057: val_my_iou_metric_2 did not improve from 0.80675
+
+Epoch 00057: ReduceLROnPlateau reducing learning rate to 1.5625000742147677e-05.
+Epoch 58/200
+, epoch=157
+, epoch=131
+ - 115s - loss: 0.1989 - my_iou_metric_2: 0.8753 - val_loss: 0.3566 - val_my_iou_metric_2: 0.7987
+
+Epoch 00058: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 59/200
+, epoch=158
+, epoch=132
+ - 116s - loss: 0.2045 - my_iou_metric_2: 0.8726 - val_loss: 0.3651 - val_my_iou_metric_2: 0.7929
+
+Epoch 00059: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 60/200
+, epoch=159
+, epoch=133
+ - 116s - loss: 0.2013 - my_iou_metric_2: 0.8745 - val_loss: 0.3652 - val_my_iou_metric_2: 0.7925
+
+Epoch 00060: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 61/200
+, epoch=160
+, epoch=134
+ - 116s - loss: 0.2063 - my_iou_metric_2: 0.8725 - val_loss: 0.3655 - val_my_iou_metric_2: 0.7919
+
+Epoch 00061: val_my_iou_metric_2 did not improve from 0.80675
+Epoch 62/200
+, epoch=161
+, epoch=135
+ - 116s - loss: 0.1984 - my_iou_metric_2: 0.8777 - val_loss: 0.3581 - val_my_iou_metric_2: 0.7957
+
+Epoch 00062: val_my_iou_metric_2 did not improve from 0.80675
+
+Epoch 00062: ReduceLROnPlateau reducing learning rate to 1e-05.
+Epoch 00062: early stopping
+fine tune threshold
+[ 0.743875  0.744     0.745375  0.746     0.746625  0.74625   0.746375
+  0.7465    0.747125  0.74725   0.747375  0.747375  0.747125  0.74825
+  0.7475    0.754625  0.75625   0.75575   0.75625   0.755875  0.757375
+  0.757     0.7565    0.75575   0.75625   0.75575   0.75475   0.753875
+  0.753     0.751875  0.750625]

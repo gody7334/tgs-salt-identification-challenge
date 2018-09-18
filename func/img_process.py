@@ -79,7 +79,7 @@ def random_crop_resize(x, crop, flip, degree, noise_type='None', target_size=128
 
 #     x = sk.transform.rotate(x, degree, mode='reflect')
     x = np.fliplr(x) if flip else x
-    x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
+#     x = x[crop[0]:-crop[1],crop[2]:-crop[3]]
     x = pad_resize(x, target_size)
 
     return x
